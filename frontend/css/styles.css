@@ -1,0 +1,276 @@
+/* =========================
+   GLOBAL RESET
+========================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background: #f5f7fb;
+  color: #1f2937;
+  line-height: 1.6;
+}
+
+.header {
+  background: #111827;
+  color: white;
+  text-align: center;
+  padding: 36px 20px;
+}
+
+.page-content {
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+}
+
+.page-content h2 {
+  margin-top: 18px;
+}
+
+/* =========================
+   HERO SECTION
+========================= */
+.hero {
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  color: white;
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.hero h1 {
+  font-size: 42px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.hero p {
+  font-size: 18px;
+  opacity: 0.9;
+}
+
+/* STATS */
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 25px;
+  flex-wrap: wrap;
+}
+
+.stats div {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 15px 25px;
+  border-radius: 12px;
+  min-width: 120px;
+  backdrop-filter: blur(10px);
+}
+
+.stats strong {
+  display: block;
+  font-size: 22px;
+}
+
+/* =========================
+   ADS
+========================= */
+.ad {
+  margin: 20px auto;
+  padding: 20px;
+  max-width: 1000px;
+  text-align: center;
+  border: 2px dashed #cbd5e1;
+  background: #fff;
+  border-radius: 10px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* =========================
+   SEARCH
+========================= */
+.search-section {
+  display: flex;
+  justify-content: center;
+  margin: 25px 0;
+}
+
+#searchInput {
+  width: 90%;
+  max-width: 600px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  outline: none;
+  font-size: 16px;
+  transition: 0.3s;
+}
+
+#searchInput:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* =========================
+   CATEGORIES
+========================= */
+.categories {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px;
+}
+
+.categories button {
+  padding: 10px 16px;
+  border: none;
+  background: #e5e7eb;
+  color: #111827;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.3s;
+  font-weight: 500;
+}
+
+.categories button:hover {
+  background: #2563eb;
+  color: white;
+}
+
+/* =========================
+   TOOLS GRID
+========================= */
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  padding: 30px;
+  max-width: 1200px;
+  margin: auto;
+}
+
+/* TOOL CARD */
+.tool-card {
+  background: white;
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+  transition: 0.3s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.tool-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  border-color: #2563eb;
+}
+
+.tool-card h3 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.tool-card p {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* =========================
+   FOOTER
+========================= */
+footer {
+  background: #111827;
+  color: #d1d5db;
+  text-align: center;
+  padding: 30px 20px;
+  margin-top: 40px;
+}
+
+.footer-links {
+  margin-top: 10px;
+}
+
+.footer-links a {
+  color: #9ca3af;
+  margin: 0 10px;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.footer-links a:hover {
+  color: white;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 768px) {
+  .hero h1 {
+    font-size: 32px;
+  }
+
+  .stats {
+    gap: 15px;
+  }
+
+  .tools-grid {
+    padding: 15px;
+  }
+}
+.tool-btn {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: none;
+  background: #2563eb;
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.3s;
+  width: 100%;
+}
+
+.tool-btn:hover {
+  background: #1e40af;
+}
+
+.cookie-banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #d9e2ef;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.16);
+}
+
+.cookie-banner p {
+  margin: 0;
+  font-size: 14px;
+  color: #334155;
+}
+
+.cookie-banner button {
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: white;
+  padding: 8px 12px;
+  cursor: pointer;
+}

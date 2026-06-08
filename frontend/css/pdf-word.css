@@ -1,0 +1,231 @@
+body {
+  font-family: Arial;
+  background: #f4f6f9;
+  margin: 0;
+  text-align: center;
+}
+
+header {
+  background: #2c3e50;
+  color: white;
+  padding: 20px;
+}
+
+.home-link {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: #dbeafe;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.container {
+  max-width: 600px;
+  margin: auto;
+  padding: 20px;
+}
+
+.box {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+input {
+  margin: 20px 0;
+}
+
+button {
+  padding: 10px 20px;
+  background: #27ae60;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+button:hover {
+  background: #219150;
+}
+
+.download-panel {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 12px;
+  padding: 16px;
+  border: 1px solid #b7eadf;
+  border-radius: 10px;
+  background: #ecfdf8;
+  text-align: left;
+}
+
+.download-panel strong {
+  color: #0f5f55;
+  font-size: 18px;
+}
+
+.download-panel span {
+  color: #335c57;
+  overflow-wrap: anywhere;
+}
+
+.download-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #0f766e;
+  color: white;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.download-btn:hover {
+  background: #0b5d57;
+}
+
+.direct-link {
+  display: block;
+  margin-top: 8px;
+  color: #1565c0;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.download-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.download-modal-box {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  width: min(460px, 100%);
+  padding: 26px;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.download-modal-box h2 {
+  margin: 0;
+  color: #0f5f55;
+}
+
+.download-filename {
+  padding: 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.download-btn.big {
+  justify-self: center;
+  padding: 14px 22px;
+  font-size: 16px;
+}
+
+.download-status {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.download-status.success {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #1e293b;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.ad {
+  margin: 20px 0;
+  padding: 20px;
+  background: #ddd;
+}
+
+.affiliate-card {
+  display: block;
+  margin: 20px 0;
+  padding: 14px;
+  border-radius: 8px;
+  background: #eefcf9;
+  color: #0f766e;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.footer {
+  text-align: center;
+  padding: 20px;
+  background: #222;
+  color: #ccc;
+  margin-top: 30px;
+}
+
+.footer-links a {
+  display: inline-block;
+  margin: 0 8px;
+  color: #90caf9;
+  line-height: 2;
+  text-decoration: none;
+}
+
+.cookie-banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #d9e2ef;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.16);
+}
+
+.cookie-banner p {
+  margin: 0;
+  font-size: 14px;
+  color: #334155;
+}
+
+.cookie-banner button {
+  border: none;
+  border-radius: 6px;
+  background: #27ae60;
+  color: white;
+  padding: 8px 12px;
+  cursor: pointer;
+}

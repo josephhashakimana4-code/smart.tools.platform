@@ -1,0 +1,229 @@
+/* =========================
+   GLOBAL
+========================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", sans-serif;
+}
+
+body {
+  background: #f4f6f9;
+  color: #333;
+}
+
+/* =========================
+   HEADER
+========================= */
+.header {
+  background: linear-gradient(135deg, #007bff, #0047ab);
+  color: white;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.header h1 {
+  font-size: 2rem;
+}
+
+.header p {
+  opacity: 0.9;
+}
+
+/* =========================
+   LAYOUT
+========================= */
+.container {
+  display: flex;
+  max-width: 1100px;
+  margin: 30px auto;
+  gap: 20px;
+  padding: 0 15px;
+}
+
+/* =========================
+   FORM SECTION
+========================= */
+.form-section {
+  flex: 2;
+  background: white;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.contact-intro {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e1e7f0;
+}
+
+.contact-intro span {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.contact-intro h2 {
+  margin: 6px 0;
+  color: #123047;
+  font-size: 24px;
+}
+
+.contact-intro p {
+  color: #526175;
+  line-height: 1.6;
+}
+
+form label {
+  font-weight: 600;
+  margin-top: 10px;
+  display: block;
+}
+
+form input,
+form textarea {
+  width: 100%;
+  padding: 12px;
+  margin-top: 5px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+form input:focus,
+form textarea:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+form textarea {
+  min-height: 120px;
+}
+
+form button {
+  width: 100%;
+  padding: 12px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+form button:hover {
+  background: #0056b3;
+}
+
+/* =========================
+   STATUS
+========================= */
+#status {
+  margin-top: 10px;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* =========================
+   SIDEBAR
+========================= */
+.sidebar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* =========================
+   ADS
+========================= */
+.ad {
+  background: #e9ecef;
+  padding: 20px;
+  text-align: center;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.ad-top,
+.ad-middle {
+  max-width: 1100px;
+  margin: 20px auto;
+}
+
+.ad-side {
+  height: 150px;
+}
+
+/* =========================
+   FOOTER
+========================= */
+.footer {
+  text-align: center;
+  padding: 20px;
+  background: #222;
+  color: #ccc;
+  margin-top: 30px;
+}
+
+.footer-links a {
+  display: inline-block;
+  color: #90caf9;
+  margin: 0 8px;
+  line-height: 2;
+  text-decoration: none;
+}
+
+.cookie-banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #d9e2ef;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.16);
+}
+
+.cookie-banner p {
+  margin: 0;
+  font-size: 14px;
+  color: #334155;
+}
+
+.cookie-banner button {
+  border: none;
+  border-radius: 6px;
+  background: #007bff;
+  color: white;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    flex-direction: row;
+  }
+
+  .ad-side {
+    flex: 1;
+  }
+}

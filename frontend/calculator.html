@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculator | Smart Tools Hub</title>
+  <link rel="stylesheet" href="css/calculator.css">
+  <link rel="stylesheet" href="css/monetization.css">
+  <script src="js/analytics.js" defer></script>
+  <script src="js/monetization.js" defer></script>
+  <script src="js/cookie-banner.js" defer></script>
+</head>
+<body>
+  <header class="header">
+    <a class="home-link" href="index.html">Back to Home</a>
+    <h1>Calculator</h1>
+  </header>
+
+  <main class="container">
+    <section class="calculator">
+      <input id="display" disabled>
+      <div class="buttons">
+        <button onclick="append('7')">7</button>
+        <button onclick="append('8')">8</button>
+        <button onclick="append('9')">9</button>
+        <button onclick="append('/')">/</button>
+        <button onclick="append('4')">4</button>
+        <button onclick="append('5')">5</button>
+        <button onclick="append('6')">6</button>
+        <button onclick="append('*')">*</button>
+        <button onclick="append('1')">1</button>
+        <button onclick="append('2')">2</button>
+        <button onclick="append('3')">3</button>
+        <button onclick="append('-')">-</button>
+        <button onclick="append('0')">0</button>
+        <button onclick="append('.')">.</button>
+        <button onclick="clearDisplay()">C</button>
+        <button onclick="append('+')">+</button>
+        <button class="equal" onclick="calculate()">=</button>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <div class="ad ad-side">Advertisement</div>
+      <a class="affiliate-card" href="https://your-affiliate-link.com/?ref=smarttoolshub" target="_blank" rel="sponsored nofollow noopener">Recommended calculator resource</a>
+    </aside>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Smart Tools Hub</p>
+    <nav class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="contact.html">Contact</a>
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="terms.html">Terms of Use</a>
+      <a href="cookies.html">Cookie Policy</a>
+      <a href="disclaimer.html">Disclaimer</a>
+      <a href="affiliate-disclosure.html">Affiliate Disclosure</a>
+    </nav>
+  </footer>
+
+  <script src="js/calculator.js"></script>
+</body>
+</html>

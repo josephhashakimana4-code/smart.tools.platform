@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Marketplace | Smart Tools Hub</title>
+  <meta name="description" content="Get API access for BMI, PDF, QR, SEO, and other Smart Tools Hub utilities." />
+  <link rel="stylesheet" href="css/index.css" />
+  <link rel="stylesheet" href="css/monetization.css" />
+  <script src="js/analytics.js" defer></script>
+  <script src="js/monetization.js" defer></script>
+  <script src="js/business.js" defer></script>
+  <script src="js/cookie-banner.js" defer></script>
+</head>
+<body>
+  <header class="hero compact-hero">
+    <nav class="top-nav" aria-label="Main navigation">
+      <a href="index.html">Tools</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="api-marketplace.html">API</a>
+      <a href="ai-tools.html">AI</a>
+      <a href="white-label.html">White Label</a>
+      <a href="advertise.html">Advertise</a>
+      <a href="blog.html">Blog</a>
+    </nav>
+    <h1>API Marketplace</h1>
+    <p>Use Smart Tools Hub features inside your own products, apps, and workflows.</p>
+  </header>
+
+  <main class="business-page">
+    <section class="business-grid">
+      <article class="business-card"><h2>BMI API</h2><p>Calculate BMI from height and weight.</p></article>
+      <article class="business-card"><h2>PDF API</h2><p>Planned endpoints for PDF conversion and compression.</p></article>
+      <article class="business-card"><h2>QR API</h2><p>Planned endpoints for QR generation.</p></article>
+      <article class="business-card"><h2>SEO API</h2><p>Planned endpoints for meta, keyword, and SERP utilities.</p></article>
+    </section>
+
+    <section class="business-panel">
+      <h2>Request API Access</h2>
+      <form id="apiSubscriptionForm" class="business-form">
+        <input id="apiName" placeholder="Your name" required />
+        <input id="apiEmail" type="email" placeholder="Email address" required />
+        <select id="apiPlan">
+          <option value="free">Free: 100 requests/day</option>
+          <option value="pro">Pro: 10,000 requests/day</option>
+        </select>
+        <button type="submit">Create API Key</button>
+      </form>
+      <p id="apiSubscriptionMessage"></p>
+      <pre class="code-sample">POST /api/business/v1/bmi
+Header: x-api-key: your_api_key
+Body: { "weightKg": 70, "heightCm": 175 }</pre>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Smart Tools Hub</p>
+    <nav class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="white-label.html">White Label</a>
+      <a href="advertise.html">Advertise With Us</a>
+    </nav>
+  </footer>
+</body>
+</html>

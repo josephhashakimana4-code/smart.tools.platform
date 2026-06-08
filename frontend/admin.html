@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard | Smart Tools Hub</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="js/admin.js" defer></script>
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <form id="loginForm" class="login-card">
+      <h1>Smart Tools Admin</h1>
+      <p>Enter the admin password to manage tools, revenue links, views, and affiliate clicks.</p>
+      <label>Admin Password <input id="adminPassword" type="password" required autocomplete="current-password" /></label>
+      <button class="primary-btn" type="submit">Login</button>
+      <p id="loginMessage" class="message error" role="status"></p>
+    </form>
+  </section>
+
+  <div id="adminApp" class="admin-app hidden">
+    <aside class="admin-sidebar">
+      <div class="brand">
+        <strong>Smart Tools Hub</strong>
+        <span>Admin</span>
+      </div>
+      <nav class="admin-menu" aria-label="Admin menu">
+        <button class="menu-btn active" data-section="overview">Overview</button>
+        <button class="menu-btn" data-section="tools">Tools</button>
+        <button class="menu-btn" data-section="analytics">Analytics</button>
+        <button class="menu-btn" data-section="business">Business</button>
+        <button class="menu-btn" data-section="monetization">Monetization</button>
+        <button class="menu-btn" data-section="ads">Ads</button>
+        <button class="menu-btn" data-section="blog">Blog</button>
+        <button class="menu-btn" data-section="newsletter">Newsletter</button>
+        <button class="menu-btn" data-section="contact">Contact</button>
+        <button class="menu-btn" data-section="errors">Errors</button>
+        <button class="menu-btn" data-section="settings">Settings</button>
+      </nav>
+      <a class="sidebar-link" href="index.html" target="_blank">Open Website</a>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <div class="admin-main">
+      <header class="admin-header">
+        <div>
+          <a class="back-link" href="index.html">Back to Home</a>
+          <h1>Admin Dashboard</h1>
+          <p>Manage tools, descriptions, categories, status, affiliate recommendations, views, and clicks.</p>
+        </div>
+        <button id="refreshAllBtn" class="secondary-btn">Refresh</button>
+      </header>
+
+      <main class="admin-shell">
+        <section id="overviewSection" class="admin-section active">
+          <div class="stats-grid" aria-label="Dashboard statistics">
+            <article class="stat-card"><span>Total Tools</span><strong id="totalTools">0</strong></article>
+            <article class="stat-card"><span>Active</span><strong id="activeTools">0</strong></article>
+            <article class="stat-card"><span>Total Views</span><strong id="viewCount">0</strong></article>
+            <article class="stat-card"><span>Affiliate Clicks</span><strong id="affiliateClickCount">0</strong></article>
+            <article class="stat-card"><span>Click Rate</span><strong id="affiliateCtr">0%</strong></article>
+            <article class="stat-card"><span>Downloads</span><strong id="downloadCount">0</strong></article>
+            <article class="stat-card"><span>Visitors Today</span><strong id="visitorsToday">0</strong></article>
+            <article class="stat-card"><span>Visitors This Month</span><strong id="visitorsMonth">0</strong></article>
+            <article class="stat-card"><span>Ad Clicks</span><strong id="adClickCount">0</strong></article>
+            <article class="stat-card"><span>Estimated Earnings</span><strong id="estimatedEarnings">$0</strong></article>
+            <article class="stat-card"><span>Paid Revenue</span><strong id="paidRevenue">$0</strong></article>
+            <article class="stat-card"><span>Monthly Revenue</span><strong id="monthlyRevenue">$0</strong></article>
+            <article class="stat-card"><span>Subscribers</span><strong id="subscriberCount">0</strong></article>
+            <article class="stat-card"><span>Unread Contact</span><strong id="unreadContactCount">0</strong></article>
+          </div>
+
+          <section class="setup-checklist" aria-label="Monetization setup checklist">
+            <article>
+              <strong>1. PayPal receiver</strong>
+              <span>Business tab > Business Settings > PayPal receiving email and PayPal checkout URL.</span>
+            </article>
+            <article>
+              <strong>2. Real affiliate links</strong>
+              <span>Tools tab > select a tool > Affiliate URL, label, and category.</span>
+            </article>
+            <article>
+              <strong>3. Real ads</strong>
+              <span>Ads tab for direct sponsor banners; Business Settings for AdSense, PropellerAds, or Adsterra code.</span>
+            </article>
+          </section>
+
+          <section class="dashboard-grid">
+            <article class="panel">
+              <div class="panel-header"><div><h2>Top Viewed Tools</h2><p>Pages attracting the most visitors.</p></div></div>
+              <div id="topViewedList" class="rank-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Top Affiliate Clicks</h2><p>Tools sending traffic to partners.</p></div></div>
+              <div id="topAffiliateList" class="rank-list"></div>
+            </article>
+          </section>
+        </section>
+
+        <section id="toolsSection" class="admin-section">
+          <section class="admin-layout">
+            <div class="panel tools-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Tools</h2>
+                  <p id="toolsSummary">Loading tools...</p>
+                </div>
+                <button id="newToolBtn" class="primary-btn">New Tool</button>
+              </div>
+
+              <div class="filters">
+                <input id="searchInput" type="search" placeholder="Search name, slug, category, description" />
+                <select id="statusFilter">
+                  <option value="all">All status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <select id="categoryFilter">
+                  <option value="all">All categories</option>
+                </select>
+                <button id="refreshBtn" class="secondary-btn">Refresh</button>
+              </div>
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Category</th>
+                      <th>Status</th>
+                      <th>Views</th>
+                      <th>Clicks</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="toolsTable"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <aside class="panel editor-panel">
+              <div class="panel-header">
+                <div>
+                  <h2 id="formTitle">Create Tool</h2>
+                  <p id="formHint">Fill the fields and save to MongoDB.</p>
+                </div>
+              </div>
+
+              <form id="toolForm">
+                <input type="hidden" id="toolId" />
+                <label>Tool Name <input id="name" required placeholder="Example: PDF to Word" /></label>
+                <label>Slug <input id="slug" required placeholder="example-tool-slug" /></label>
+                <label>
+                  Category
+                  <select id="category" required>
+                    <option value="math">Math</option>
+                    <option value="utility">Utility</option>
+                    <option value="health">Health</option>
+                    <option value="generator">Generator</option>
+                    <option value="seo">SEO</option>
+                    <option value="text">Text</option>
+                    <option value="finance">Finance</option>
+                    <option value="image">Image</option>
+                    <option value="developer">Developer</option>
+                    <option value="security">Security</option>
+                  </select>
+                </label>
+                <label>
+                  Status
+                  <select id="status">
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </label>
+                <label>Description <textarea id="description" rows="5" placeholder="Write a clear, SEO-friendly description."></textarea></label>
+                <div class="form-group-title">SEO</div>
+                <label>Meta Title <input id="metaTitle" maxlength="70" placeholder="Custom Google title" /></label>
+                <label>Meta Description <textarea id="metaDescription" rows="3" maxlength="170" placeholder="Custom Google description"></textarea></label>
+                <label>Meta Keywords <input id="metaKeywords" placeholder="calculator, free tool, online" /></label>
+                <label>OG Image <input id="ogImage" type="url" placeholder="https://example.com/social-preview.jpg" /></label>
+                <label>Canonical URL <input id="canonicalUrl" type="url" placeholder="https://example.com/tool-url" /></label>
+                <div class="form-group-title">Affiliate</div>
+                <div class="admin-guide">
+                  <strong>Real affiliate links</strong>
+                  <p>Paste the partner tracking URL for this exact tool here, then use the Monetization tab to find tools missing links and watch clicks.</p>
+                </div>
+                <label>Affiliate URL <input id="affiliateUrl" type="url" placeholder="https://example.com/recommended-tool" /></label>
+                <label>Affiliate Label <input id="affiliateLabel" placeholder="Recommended: Adobe Acrobat" /></label>
+                <label>Affiliate Category <input id="affiliateCategory" placeholder="Recommended Resource" /></label>
+                <div class="form-actions">
+                  <button type="submit" class="primary-btn">Save Tool</button>
+                  <button type="button" id="resetBtn" class="secondary-btn">Reset</button>
+                </div>
+              </form>
+              <p id="message" class="message" role="status"></p>
+            </aside>
+          </section>
+        </section>
+
+        <section id="analyticsSection" class="admin-section">
+          <section class="dashboard-grid">
+            <article class="panel">
+              <div class="panel-header"><div><h2>Daily Visitors</h2><p>Page views over the last 30 days.</p></div></div>
+              <canvas id="dailyVisitorsChart" height="130"></canvas>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Views Per Tool</h2><p>Top tool performance.</p></div></div>
+              <canvas id="toolViewsChart" height="130"></canvas>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Top Countries</h2><p>Country values improve when served behind a country-aware proxy.</p></div></div>
+              <div id="countriesList" class="rank-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Search Analytics</h2><p>Most searched and no-result searches.</p></div></div>
+              <div id="searchAnalyticsList" class="rank-list"></div>
+            </article>
+          </section>
+        </section>
+
+        <section id="businessSection" class="admin-section">
+          <div class="stats-grid">
+            <article class="stat-card"><span>Active Plans</span><strong id="businessPlansCount">0</strong></article>
+            <article class="stat-card"><span>API Subscriptions</span><strong id="apiSubscriptionsCount">0</strong></article>
+            <article class="stat-card"><span>Pending Referrals</span><strong id="pendingReferralsCount">0</strong></article>
+            <article class="stat-card"><span>Open Ad Leads</span><strong id="openAdLeadsCount">0</strong></article>
+          </div>
+
+          <section class="dashboard-grid">
+            <article class="panel">
+              <div class="panel-header"><div><h2>Revenue By Gateway</h2><p>Stripe, PayPal, Flutterwave, Paystack, and manual records.</p></div></div>
+              <div id="gatewayRevenueList" class="rank-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Revenue By Plan</h2><p>Which plans are producing paid revenue.</p></div></div>
+              <div id="planRevenueList" class="rank-list"></div>
+            </article>
+          </section>
+
+          <section class="admin-layout business-layout">
+            <div class="panel">
+              <div class="panel-header"><div><h2>Premium Plans</h2><p>Free, Pro, API, and white-label packages.</p></div></div>
+              <div class="table-wrap">
+                <table><thead><tr><th>Plan</th><th>Price</th><th>Limits</th><th>Status</th><th>Actions</th></tr></thead><tbody id="plansTable"></tbody></table>
+              </div>
+            </div>
+            <aside class="panel editor-panel">
+              <h2 id="planFormTitle">Create Plan</h2>
+              <form id="planForm">
+                <input type="hidden" id="planId" />
+                <label>Name <input id="planName" required placeholder="Pro" /></label>
+                <label>Slug <input id="planSlug" required placeholder="pro" /></label>
+                <label>Price <input id="planPrice" type="number" min="0" step="0.01" value="0" /></label>
+                <label>Currency <input id="planCurrency" value="USD" /></label>
+                <label>Interval <select id="planInterval"><option value="free">Free</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="one-time">One-time</option></select></label>
+                <label>Daily Tool Limit <input id="planDailyLimit" type="number" min="0" value="100" /></label>
+                <label>Daily API Limit <input id="planApiLimit" type="number" min="0" value="100" /></label>
+                <label class="check-label"><input id="planAdsRemoved" type="checkbox" /> Remove ads</label>
+                <label class="check-label"><input id="planActive" type="checkbox" checked /> Active</label>
+                <label>Features <textarea id="planFeatures" rows="4" placeholder="One feature per line"></textarea></label>
+                <div class="form-actions"><button class="primary-btn" type="submit">Save Plan</button><button id="resetPlanBtn" class="secondary-btn" type="button">Reset</button></div>
+              </form>
+            </aside>
+          </section>
+
+          <section class="dashboard-grid">
+            <article class="panel">
+              <div class="panel-header"><div><h2>Payments</h2><p>Manual and gateway payment records.</p></div></div>
+              <div class="table-wrap">
+                <table><thead><tr><th>Customer</th><th>Plan</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody id="paymentsTable"></tbody></table>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Record Payment</h2><p>Add direct sales or gateway payments.</p></div></div>
+              <form id="paymentForm" class="compact-form">
+                <input id="paymentCustomerName" placeholder="Customer name" />
+                <input id="paymentCustomerEmail" type="email" placeholder="Customer email" />
+                <input id="paymentPlanSlug" placeholder="plan slug" />
+                <select id="paymentGateway"><option value="manual">Manual</option><option value="paypal">PayPal</option><option value="stripe">Stripe</option><option value="flutterwave">Flutterwave</option><option value="paystack">Paystack</option></select>
+                <input id="paymentAmount" type="number" min="0" step="0.01" placeholder="Amount" />
+                <input id="paymentCurrency" value="USD" />
+                <select id="paymentStatus"><option value="pending">Pending</option><option value="paid">Paid</option><option value="failed">Failed</option><option value="refunded">Refunded</option></select>
+                <input id="paymentReference" placeholder="Reference" />
+                <button class="primary-btn" type="submit">Record Payment</button>
+              </form>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>API Subscriptions</h2><p>Keys, limits, and status.</p></div></div>
+              <div id="apiSubscriptionsList" class="rank-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Referral Program</h2><p>Invites and rewards.</p></div></div>
+              <div id="referralsList" class="rank-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Direct Ad Sales Leads</h2><p>Advertise With Us submissions.</p></div></div>
+              <div id="directAdLeadsList" class="rank-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Business Settings</h2><p>Brand, payment receiver, checkout links, ad networks, and languages.</p></div></div>
+              <div class="admin-guide">
+                <strong>Where to put money accounts</strong>
+                <p>Paste your real PayPal receiving account below. Use PayPal checkout URL for a PayPal.Me link, hosted button link, or PayPal payment link. Visitors who choose PayPal on the Pricing page will be sent there.</p>
+              </div>
+              <form id="businessSettingsForm" class="compact-form">
+                <input id="brandName" placeholder="Brand name" />
+                <input id="logoUrl" type="url" placeholder="Logo URL" />
+                <input id="defaultCurrency" placeholder="USD" />
+                <input id="paypalAccountEmail" type="email" placeholder="PayPal receiving email, e.g. payments@example.com" />
+                <textarea id="paymentInstructions" rows="3" placeholder="Payment notes for admin, e.g. confirm PayPal payments before activating Pro/API access"></textarea>
+                <input id="paypalUrl" type="url" placeholder="PayPal checkout URL, PayPal.Me, hosted button, or payment link" />
+                <input id="stripeUrl" type="url" placeholder="Stripe checkout URL" />
+                <input id="flutterwaveUrl" type="url" placeholder="Flutterwave checkout URL" />
+                <input id="paystackUrl" type="url" placeholder="Paystack checkout URL" />
+                <input id="adsensePublisherId" placeholder="AdSense Publisher ID" />
+                <textarea id="propellerAdsCode" rows="3" placeholder="PropellerAds code"></textarea>
+                <textarea id="adsterraCode" rows="3" placeholder="Adsterra code"></textarea>
+                <textarea id="supportedLanguages" rows="3" placeholder="English, French, Kinyarwanda, Swahili, Arabic"></textarea>
+                <input id="youtubeUrl" type="url" placeholder="YouTube URL" />
+                <input id="facebookUrl" type="url" placeholder="Facebook URL" />
+                <input id="linkedinUrl" type="url" placeholder="LinkedIn URL" />
+                <button class="primary-btn" type="submit">Save Settings</button>
+              </form>
+            </article>
+          </section>
+        </section>
+
+        <section id="monetizationSection" class="admin-section">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Monetization Report</h2>
+                <p>Compare views, affiliate clicks, click rate, and missing partner links.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tool</th>
+                    <th>Status</th>
+                    <th>Views</th>
+                    <th>Affiliate Clicks</th>
+                    <th>CTR</th>
+                    <th>Affiliate Link</th>
+                  </tr>
+                </thead>
+                <tbody id="monetizationTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="adsSection" class="admin-section">
+          <section class="admin-layout">
+            <div class="panel">
+              <div class="panel-header"><div><h2>Advertisement Management</h2><p>Manage top, sidebar, footer, and in-tool ad placements.</p></div></div>
+              <div class="table-wrap">
+                <table><thead><tr><th>Title</th><th>Position</th><th>Status</th><th>Clicks</th><th>Actions</th></tr></thead><tbody id="adsTable"></tbody></table>
+              </div>
+            </div>
+            <aside class="panel editor-panel">
+              <h2 id="adFormTitle">Create Ad</h2>
+              <div class="admin-guide">
+                <strong>Real ads</strong>
+                <p>Add direct sponsor ads here. For network ads like AdSense, PropellerAds, or Adsterra, paste the account/script details in Business Settings.</p>
+              </div>
+              <form id="adForm">
+                <input type="hidden" id="adId" />
+                <label>Title <input id="adTitle" required /></label>
+                <label>Image URL <input id="adImage" type="url" /></label>
+                <label>Target URL <input id="adUrl" type="url" /></label>
+                <label>Position <select id="adPosition"><option value="top">Top Banner</option><option value="sidebar">Sidebar</option><option value="footer">Footer</option><option value="in-tool">In-tool</option></select></label>
+                <label class="check-label"><input id="adActive" type="checkbox" checked /> Active</label>
+                <div class="form-actions"><button class="primary-btn" type="submit">Save Ad</button><button id="resetAdBtn" class="secondary-btn" type="button">Reset</button></div>
+              </form>
+            </aside>
+          </section>
+        </section>
+
+        <section id="blogSection" class="admin-section">
+          <section class="admin-layout">
+            <div class="panel">
+              <div class="panel-header"><div><h2>Blog Posts</h2><p>Create SEO articles for organic traffic.</p></div></div>
+              <div class="table-wrap">
+                <table><thead><tr><th>Title</th><th>Status</th><th>Slug</th><th>Actions</th></tr></thead><tbody id="blogTable"></tbody></table>
+              </div>
+            </div>
+            <aside class="panel editor-panel">
+              <h2 id="blogFormTitle">Create Article</h2>
+              <form id="blogForm">
+                <input type="hidden" id="blogId" />
+                <label>Title <input id="blogTitle" required /></label>
+                <label>Slug <input id="blogSlug" required /></label>
+                <label>Status <select id="blogStatus"><option value="draft">Draft</option><option value="published">Published</option></select></label>
+                <label>Excerpt <textarea id="blogExcerpt" rows="3"></textarea></label>
+                <label>Content <textarea id="blogContent" rows="9"></textarea></label>
+                <label>Meta Title <input id="blogMetaTitle" /></label>
+                <label>Meta Description <textarea id="blogMetaDescription" rows="3"></textarea></label>
+                <div class="form-actions"><button class="primary-btn" type="submit">Save Article</button><button id="resetBlogBtn" class="secondary-btn" type="button">Reset</button></div>
+              </form>
+            </aside>
+          </section>
+        </section>
+
+        <section id="newsletterSection" class="admin-section">
+          <div class="panel">
+            <div class="panel-header"><div><h2>Newsletter Subscribers</h2><p>Collected emails for future newsletter sends.</p></div></div>
+            <div id="subscribersList" class="rank-list"></div>
+          </div>
+        </section>
+
+        <section id="contactSection" class="admin-section">
+          <div class="panel">
+            <div class="panel-header"><div><h2>Inbox</h2><p>Manage unread, read, and archived contact messages.</p></div><select id="contactStatusFilter"><option value="all">All</option><option value="unread">Unread</option><option value="read">Read</option><option value="archived">Archived</option></select></div>
+            <div id="contactList" class="rank-list"></div>
+          </div>
+        </section>
+
+        <section id="errorsSection" class="admin-section">
+          <div class="panel">
+            <div class="panel-header"><div><h2>System Errors</h2><p>Recent API and server errors.</p></div></div>
+            <div id="errorsList" class="rank-list"></div>
+          </div>
+        </section>
+
+        <section id="settingsSection" class="admin-section">
+          <div class="panel settings-panel">
+            <h2>Settings</h2>
+            <p class="muted">Default password is <strong>admin123</strong>. For production, set <strong>ADMIN_PASSWORD</strong> in backend/.env before starting the server.</p>
+            <button id="resetMetricsBtn" class="danger-btn">Reset Views and Affiliate Clicks</button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

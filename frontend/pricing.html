@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pricing | Smart Tools Hub</title>
+  <meta name="description" content="Choose a Smart Tools Hub plan for ad-free tools, higher limits, premium features, and API access." />
+  <link rel="stylesheet" href="css/index.css" />
+  <link rel="stylesheet" href="css/monetization.css" />
+  <script src="js/analytics.js" defer></script>
+  <script src="js/monetization.js" defer></script>
+  <script src="js/business.js" defer></script>
+  <script src="js/cookie-banner.js" defer></script>
+</head>
+<body>
+  <header class="hero compact-hero">
+    <nav class="top-nav" aria-label="Main navigation">
+      <a href="index.html">Tools</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="api-marketplace.html">API</a>
+      <a href="ai-tools.html">AI</a>
+      <a href="white-label.html">White Label</a>
+      <a href="advertise.html">Advertise</a>
+      <a href="blog.html">Blog</a>
+    </nav>
+    <h1>Pricing</h1>
+    <p>Free tools for everyone, with Pro plans for people and businesses that need more.</p>
+  </header>
+
+  <main class="business-page">
+    <section id="plansGrid" class="business-grid"></section>
+
+    <section class="value-section">
+      <div class="section-heading">
+        <h2>Plans Designed for Real Monetization</h2>
+        <p>Use Free for traffic and ad revenue, Pro for loyal users, API Business for developers, and White Label for higher-value company deals.</p>
+      </div>
+    </section>
+
+    <section class="business-panel">
+      <h2>Start a Plan</h2>
+      <form id="checkoutForm" class="business-form">
+        <input id="checkoutName" placeholder="Your name" required />
+        <input id="checkoutEmail" type="email" placeholder="Email address" required />
+        <select id="checkoutPlan"></select>
+        <select id="checkoutGateway">
+          <option value="paypal">PayPal</option>
+          <option value="stripe">Stripe</option>
+          <option value="flutterwave">Flutterwave</option>
+          <option value="paystack">Paystack</option>
+        </select>
+        <button type="submit">Continue</button>
+      </form>
+      <p id="checkoutMessage"></p>
+    </section>
+
+    <section class="business-panel">
+      <h2>Referral Program</h2>
+      <form id="referralForm" class="business-form">
+        <input id="referrerEmail" type="email" placeholder="Your email" required />
+        <input id="invitedEmail" type="email" placeholder="Friend's email" required />
+        <button type="submit">Send Referral</button>
+      </form>
+      <p id="referralMessage"></p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Smart Tools Hub</p>
+    <nav class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="api-marketplace.html">API Marketplace</a>
+      <a href="advertise.html">Advertise With Us</a>
+      <a href="white-label.html">White Label</a>
+    </nav>
+  </footer>
+</body>
+</html>
