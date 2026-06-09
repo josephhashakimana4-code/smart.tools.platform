@@ -1,11 +1,13 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
+
 const Tool = require("./models/Tool");
 const BlogPost = require("./models/BlogPost");
 const ErrorLog = require("./models/ErrorLog");
+
 require("dotenv").config();
 
 const app = express();
@@ -14,15 +16,16 @@ app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json());
 
-// static downloads
-app.use("/download", express.static(path.join(__dirname, "converted")));
-
-// DB
+/* =========================
+   DATABASE CONNECTION
+========================= */
 mongoose.connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/toolsdb")
   .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log(err));
+  .catch(err => console.log("MongoDB Error:", err));
 
-// routes
+/* =========================
+   API ROUTES
+========================= */
 const toolsRoute = require("./routes/tools");
 const contactRoute = require("./routes/contact");
 const adminRoute = require("./routes/admin");
@@ -37,44 +40,55 @@ app.use("/api/analytics", analyticsRoute);
 app.use("/api/blog", blogRoute);
 app.use("/api/business", businessRoute);
 
-const frontendPath = path.join(__dirname, "..", "frontend");
+/* =========================
+   FRONTEND SETUP (FIXED)
+========================= */
+const frontendPath = path.join(__dirname, "frontend");
 
-function getBaseUrl(req) {
-  return `${req.protocol}://${req.get("host")}`;
-}
+// Serve static files
+app.use(express.static(frontendPath));
 
-function sendFrontendPage(fileName) {
-  return (req, res, next) => {
-    const filePath = path.join(frontendPath, fileName);
-    fs.readFile(filePath, "utf8", (err, html) => {
-      if (err) return next(err);
-      res.type("html").send(html.replace(/__SITE_URL__/g, getBaseUrl(req)));
-    });
-  };
-}
+// Home page
+app.get("/", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
+});
 
-app.get(["/", "/index.html"], sendFrontendPage("index.html"));
+// Main pages
+const pages = [
+  "tool.html",
+  "admin.html",
+  "blog.html",
+  "blog-post.html",
+  "pricing.html",
+  "advertise.html",
+  "api-marketplace.html",
+  "white-label.html",
+  "ai-tools.html"
+];
 
-app.get(["/tool", "/tools", "/tool.html"], sendFrontendPage("tool.html"));
+pages.forEach((page) => {
+  const route = `/${page.replace(".html", "")}`;
 
-app.get(["/admin", "/dashboard", "/admin.html"], sendFrontendPage("admin.html"));
+  app.get(route, (req, res) => {
+    res.sendFile(path.join(frontendPath, page));
+  });
 
-app.get(["/blog", "/blog/"], sendFrontendPage("blog.html"));
+  app.get(`/${page}`, (req, res) => {
+    res.sendFile(path.join(frontendPath, page));
+  });
+});
 
-app.get("/blog/:slug", sendFrontendPage("blog-post.html"));
+/* =========================
+   DOWNLOAD STATIC FILES
+========================= */
+app.use("/download", express.static(path.join(__dirname, "converted")));
 
-app.get(["/pricing", "/pricing.html"], sendFrontendPage("pricing.html"));
-
-app.get(["/advertise", "/advertise.html"], sendFrontendPage("advertise.html"));
-
-app.get(["/api-marketplace", "/api-marketplace.html"], sendFrontendPage("api-marketplace.html"));
-
-app.get(["/white-label", "/white-label.html"], sendFrontendPage("white-label.html"));
-
-app.get(["/ai-tools", "/ai-tools.html"], sendFrontendPage("ai-tools.html"));
-
+/* =========================
+   ROBOTS.TXT
+========================= */
 app.get("/robots.txt", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
+
   res.type("text/plain").send([
     "User-agent: *",
     "Disallow: /admin",
@@ -86,9 +100,13 @@ app.get("/robots.txt", (req, res) => {
   ].join("\n"));
 });
 
+/* =========================
+   SITEMAP.XML
+========================= */
 app.get("/sitemap.xml", async (req, res) => {
   try {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
+
     const [tools, posts] = await Promise.all([
       Tool.find({ status: "active" }).select("slug lastViewedAt"),
       BlogPost.find({ status: "published" }).select("slug updatedAt publishedAt")
@@ -102,26 +120,39 @@ app.get("/sitemap.xml", async (req, res) => {
       { loc: `${baseUrl}/advertise`, priority: "0.8" },
       { loc: `${baseUrl}/white-label`, priority: "0.7" },
       { loc: `${baseUrl}/ai-tools`, priority: "0.7" },
-      ...tools.map((tool) => ({
+
+      ...tools.map(tool => ({
         loc: `${baseUrl}/tool.html?slug=${encodeURIComponent(tool.slug)}`,
         lastmod: tool.lastViewedAt,
         priority: "0.9"
       })),
-      ...posts.map((post) => ({
+
+      ...posts.map(post => ({
         loc: `${baseUrl}/blog/${encodeURIComponent(post.slug)}`,
         lastmod: post.updatedAt || post.publishedAt,
         priority: "0.7"
       }))
     ];
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((url) => `  <url>\n    <loc>${url.loc}</loc>${url.lastmod ? `\n    <lastmod>${new Date(url.lastmod).toISOString()}</lastmod>` : ""}\n    <priority>${url.priority}</priority>\n  </url>`).join("\n")}\n</urlset>`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(url => `
+  <url>
+    <loc>${url.loc}</loc>
+    ${url.lastmod ? `<lastmod>${new Date(url.lastmod).toISOString()}</lastmod>` : ""}
+    <priority>${url.priority}</priority>
+  </url>`).join("\n")}
+</urlset>`;
+
     res.type("application/xml").send(xml);
+
   } catch (err) {
     console.error("Sitemap error:", err);
-    res.status(500).type("text/plain").send("Failed to generate sitemap.");
+    res.status(500).send("Failed to generate sitemap.");
   }
 });
 
+/* =========================
+   LEGACY REDIRECTS
+========================= */
 const legacyToolPages = {
   "/calculator.html": "calculator",
   "/percentagecalculator.html": "percentage-calculator",
@@ -140,31 +171,27 @@ app.get(Object.keys(legacyToolPages), (req, res) => {
   res.redirect(`/tool.html?slug=${legacyToolPages[req.path]}`);
 });
 
-app.use(express.static(frontendPath));
-
+/* =========================
+   ERROR HANDLING
+========================= */
 app.use((err, req, res, next) => {
   console.error("Unhandled server error:", err);
+
   ErrorLog.create({
     type: "server",
     message: err.message,
     stack: err.stack,
     path: req.originalUrl
   }).catch(() => {});
+
   res.status(500).json({ message: "Something went wrong." });
 });
 
+/* =========================
+   START SERVER
+========================= */
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(`Port ${PORT} is already in use. Stop the old Node server before starting this one again.`);
-    console.error("PowerShell: Get-Process node | Stop-Process");
-    process.exit(1);
-  }
-
-  throw err;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
