@@ -14,7 +14,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 /* =========================
-   SECURITY HARDENING (SAAS)
+   SECURITY LAYER
 ========================= */
 app.use(
   helmet({
@@ -25,15 +25,17 @@ app.use(
 
 app.use(compression());
 app.use(morgan("combined"));
-app.use(cors({
-  origin: "*",
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: "*",
+    credentials: true
+  })
+);
 
 app.use(express.json({ limit: "2mb" }));
 
 /* =========================
-   GLOBAL ERROR WRAPPER (IMPORTANT)
+   GLOBAL ASYNC WRAPPER
 ========================= */
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
@@ -57,7 +59,7 @@ const blogRoute = require("./routes/blog");
 const businessRoute = require("./routes/business");
 
 /* =========================
-   MIDDLEWARES (SAAS LAYER)
+   MIDDLEWARES
 ========================= */
 const auth = require("./middlewares/auth");
 const role = require("./middlewares/role");
@@ -65,7 +67,7 @@ const createLimiter = require("./middlewares/rateLimiter");
 const errorHandler = require("./middlewares/errorHandler");
 
 /* =========================
-   RATE LIMIT (GLOBAL)
+   RATE LIMIT (GLOBAL SAFETY)
 ========================= */
 app.use(
   createLimiter({
@@ -75,7 +77,7 @@ app.use(
 );
 
 /* =========================
-   DB CONNECTION (SAFETY IMPROVED)
+   DB CONNECTION (ROBUST)
 ========================= */
 mongoose
   .connect(process.env.MONGO_URI)
@@ -93,16 +95,16 @@ app.use("/api/contact", contactRoute);
 app.use("/api/analytics", analyticsRoute);
 app.use("/api/blog", blogRoute);
 app.use("/api/business", businessRoute);
+
+/* IMPORTANT: ADMIN PROTECTION */
 app.use("/api/admin", auth, role("admin"), adminRoute);
 
 /* =========================
-   AFFILIATE SYSTEM (SAFE VERSION)
+   AFFILIATE SYSTEM (SAFE)
 ========================= */
 app.get(
   "/go/:tool",
   asyncHandler(async (req, res) => {
-    const Affiliate = require("./models/Affiliate");
-
     const record = await Affiliate.findOne({
       key: req.params.tool.toLowerCase(),
       active: true
@@ -129,7 +131,7 @@ app.get("/", (req, res) => {
 });
 
 /* =========================
-   DYNAMIC PAGE ROUTING
+   PAGE ROUTING
 ========================= */
 const pages = [
   "tool.html",
@@ -176,22 +178,18 @@ Sitemap: ${baseUrl}/sitemap.xml
 });
 
 /* =========================
-   SITEMAP (OPTIMIZED)
+   SITEMAP (LIGHTWEIGHT + FAST)
 ========================= */
 app.get(
   "/sitemap.xml",
   asyncHandler(async (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-    const [tools, posts] = await Promise.all([
-      Tool.find({ status: "active" }).select("slug lastViewedAt"),
-      BlogPost.find({ status: "published" }).select("slug updatedAt publishedAt")
-    ]);
-
     const urls = [
       `${baseUrl}/`,
       `${baseUrl}/blog`,
-      `${baseUrl}/pricing`
+      `${baseUrl}/pricing`,
+      `${baseUrl}/ai-tools`
     ];
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -225,18 +223,31 @@ app.get(Object.keys(legacyToolPages), (req, res) => {
 });
 
 /* =========================
-   ERROR HANDLER (FINAL LAYER)
+   ERROR HANDLING (FINAL LAYER)
 ========================= */
-app.use(errorHandler);
+app.use((err, req, res, next) => {
+  console.error("Server Error:", err);
+
+  ErrorLog.create({
+    type: "server",
+    message: err.message,
+    stack: err.stack,
+    path: req.originalUrl
+  }).catch(() => {});
+
+  res.status(500).json({
+    success: false,
+    message: "Internal Server Error"
+  });
+});
 
 /* =========================
-   GRACEFUL SHUTDOWN (IMPORTANT FOR RENDER)
+   GRACEFUL SHUTDOWN (RENDER SAFE)
 ========================= */
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received. shutting down...");
-  mongoose.connection.close(false, () => {
-    process.exit(0);
-  });
+process.on("SIGTERM", async () => {
+  console.log("SIGTERM received - shutting down gracefully");
+  await mongoose.connection.close();
+  process.exit(0);
 });
 
 /* =========================
