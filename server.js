@@ -28,9 +28,9 @@ const businessRoute = require("./routes/business");
 /* =========================
    MIDDLEWARE (SAAS LAYER)
 ========================= */
-const auth = require("./middleware/auth");
-const role = require("./middleware/role");
-const createLimiter = require("./middleware/rateLimit");
+const auth = require("./middlewares/auth");
+const role = require("./middlewares/role");
+const createLimiter = require("./middlewares/rateLimit");
 
 /* =========================
    APP INIT
