@@ -7,6 +7,7 @@ const fs = require("fs");
 const Tool = require("./models/Tool");
 const BlogPost = require("./models/BlogPost");
 const ErrorLog = require("./models/ErrorLog");
+const Affiliate = require("./models/Affiliate"); // ✅ NEW
 
 require("dotenv").config();
 
@@ -41,19 +42,52 @@ app.use("/api/blog", blogRoute);
 app.use("/api/business", businessRoute);
 
 /* =========================
-   FRONTEND SETUP (FIXED)
+   🚀 AFFILIATE /GO ROUTE (PRO VERSION)
+========================= */
+
+app.get("/go/:tool", async (req, res) => {
+  try {
+    const tool = req.params.tool.toLowerCase();
+
+    const record = await Affiliate.findOne({ key: tool, active: true });
+
+    if (record) {
+      // track clicks
+      record.clicks = (record.clicks || 0) + 1;
+      await record.save();
+
+      // redirect to affiliate link OR base link
+      return res.redirect(302, record.affiliate_url || record.base_url);
+    }
+
+    // fallback if not found
+    return res.redirect(302, "/");
+
+  } catch (err) {
+    console.error("GO ROUTE ERROR:", err);
+
+    await ErrorLog.create({
+      type: "affiliate_redirect",
+      message: err.message,
+      stack: err.stack,
+      path: req.originalUrl
+    }).catch(() => {});
+
+    return res.status(500).send("Redirect error");
+  }
+});
+
+/* =========================
+   FRONTEND SETUP
 ========================= */
 const frontendPath = path.join(__dirname, "frontend");
 
-// Serve static files
 app.use(express.static(frontendPath));
 
-// Home page
 app.get("/", (req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
-// Main pages
 const pages = [
   "tool.html",
   "admin.html",
