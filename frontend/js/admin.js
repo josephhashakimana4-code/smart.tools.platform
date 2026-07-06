@@ -1,12 +1,12 @@
 const API_BASE =
-  window.location.protocol === "file:"
+  window.location.hostname === "localhost"
     ? "http://localhost:5000"
-    : window.location.origin;
+    : "https://YOUR-RENDER-BACKEND.onrender.com"; // 🔴 CHANGE THIS
 
 const TOKEN_KEY = "smartToolsAdminToken";
 
 /* =========================
-   API CLIENT
+   API CLIENT (ROBUST)
 ========================= */
 class ApiClient {
   constructor(baseUrl) {
@@ -25,45 +25,46 @@ class ApiClient {
     localStorage.removeItem(TOKEN_KEY);
   }
 
-  /* 🔴 FIXED: backend expects x-admin-token */
   headers() {
-    const headers = {
+    const h = {
       "Content-Type": "application/json",
     };
 
-    if (this.token) {
-      headers["x-admin-token"] = this.token;
-    }
+    if (this.token) h["x-admin-token"] = this.token;
 
-    return headers;
+    return h;
   }
 
   async request(path, options = {}) {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers: {
-        ...this.headers(),
-        ...(options.headers || {}),
-      },
-    });
-
-    let data = {};
     try {
-      data = await res.json();
-    } catch {}
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        ...options,
+        headers: {
+          ...this.headers(),
+          ...(options.headers || {}),
+        },
+      });
 
-    /* SESSION HANDLING */
-    if (res.status === 401) {
-      this.clearToken();
-      window.location.href = "/admin.html";
-      throw new Error("SESSION_EXPIRED");
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {}
+
+      if (res.status === 401) {
+        this.clearToken();
+        window.location.href = "/admin.html";
+        throw new Error("SESSION_EXPIRED");
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || `HTTP ${res.status}`);
+      }
+
+      return data;
+    } catch (err) {
+      console.error("API ERROR:", err);
+      throw err;
     }
-
-    if (!res.ok) {
-      throw new Error(data.message || `HTTP ${res.status}`);
-    }
-
-    return data;
   }
 
   get(p) { return this.request(p); }
@@ -80,33 +81,36 @@ const api = new ApiClient(API_BASE);
 ========================= */
 const state = {
   tools: [],
+  loading: false,
 };
 
 /* =========================
-   DOM
+   DOM SAFE ACCESS
 ========================= */
+const $ = (id) => document.getElementById(id);
+
 const els = {
-  loginScreen: document.getElementById("loginScreen"),
-  adminApp: document.getElementById("adminApp"),
-  loginForm: document.getElementById("loginForm"),
-  adminPassword: document.getElementById("adminPassword"),
-  loginMessage: document.getElementById("loginMessage"),
-  logoutBtn: document.getElementById("logoutBtn"),
-  refreshAllBtn: document.getElementById("refreshAllBtn"),
-  toolsTable: document.getElementById("toolsTable"),
+  loginScreen: $("loginScreen"),
+  adminApp: $("adminApp"),
+  loginForm: $("loginForm"),
+  adminPassword: $("adminPassword"),
+  loginMessage: $("loginMessage"),
+  logoutBtn: $("logoutBtn"),
+  refreshAllBtn: $("refreshAllBtn"),
+  toolsTable: $("toolsTable"),
 };
 
 /* =========================
-   UI SWITCH
+   UI
 ========================= */
 function showAdmin() {
-  els.loginScreen.classList.add("hidden");
-  els.adminApp.classList.remove("hidden");
+  els.loginScreen?.classList.add("hidden");
+  els.adminApp?.classList.remove("hidden");
 }
 
 function showLogin() {
-  els.adminApp.classList.add("hidden");
-  els.loginScreen.classList.remove("hidden");
+  els.adminApp?.classList.add("hidden");
+  els.loginScreen?.classList.remove("hidden");
 }
 
 /* =========================
@@ -121,7 +125,6 @@ async function login(e) {
     });
 
     api.token = data.token;
-
     els.adminPassword.value = "";
     els.loginMessage.textContent = "";
 
@@ -145,9 +148,12 @@ async function logout() {
 }
 
 /* =========================
-   DASHBOARD LOADING
+   DASHBOARD
 ========================= */
 async function loadDashboard() {
+  if (state.loading) return;
+  state.loading = true;
+
   try {
     const [stats, tools] = await Promise.all([
       api.get("/api/admin/stats"),
@@ -164,76 +170,88 @@ async function loadDashboard() {
     } else {
       console.error("Dashboard error:", err);
     }
+  } finally {
+    state.loading = false;
   }
 }
 
 /* =========================
-   STATS RENDER (SAFE)
+   STATS
 ========================= */
-function renderStats(stats) {
-  setText("totalTools", stats.totalTools ?? stats.total ?? 0);
-  setText("activeTools", stats.activeTools ?? stats.active ?? 0);
+function renderStats(stats = {}) {
+  setText("totalTools", stats.total ?? stats.totalTools ?? 0);
+  setText("activeTools", stats.active ?? stats.activeTools ?? 0);
   setText("viewCount", stats.views ?? 0);
 }
 
 function setText(id, value) {
-  const el = document.getElementById(id);
+  const el = $(id);
   if (el) el.textContent = value;
 }
 
 /* =========================
-   TOOLS TABLE
+   TOOLS TABLE (OPTIMIZED)
 ========================= */
-function renderTools(tools) {
+function renderTools(tools = []) {
   if (!els.toolsTable) return;
 
-  els.toolsTable.innerHTML = "";
-
-  tools.forEach((t) => {
-    const row = document.createElement("tr");
-
-    row.innerHTML = `
-      <td>${t.name || "-"}</td>
-      <td>${t.category || "-"}</td>
-      <td>${t.status || "-"}</td>
-      <td>${t.views || 0}</td>
-      <td>
-        <button data-id="${t._id}" class="delete-btn">Delete</button>
-      </td>
-    `;
-
-    els.toolsTable.appendChild(row);
-  });
-
-  /* DELETE HANDLER */
-  document.querySelectorAll(".delete-btn").forEach((btn) => {
-    btn.onclick = async () => {
-      const id = btn.getAttribute("data-id");
-      if (!confirm("Delete this tool?")) return;
-
-      try {
-        await api.delete(`/api/admin/tools/${id}`);
-        await loadDashboard();
-      } catch (err) {
-        alert(err.message);
-      }
-    };
-  });
+  els.toolsTable.innerHTML = tools
+    .map(
+      (t) => `
+      <tr>
+        <td>${t.name || "-"}</td>
+        <td>${t.category || "-"}</td>
+        <td>${t.status || "-"}</td>
+        <td>${t.views || 0}</td>
+        <td>
+          <button class="delete-btn" data-id="${t._id}">Delete</button>
+        </td>
+      </tr>
+    `
+    )
+    .join("");
 }
+
+/* =========================
+   EVENT DELEGATION (FIXED)
+========================= */
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".delete-btn");
+  if (!btn) return;
+
+  const id = btn.dataset.id;
+  if (!id) return;
+
+  if (!confirm("Delete this tool?")) return;
+
+  try {
+    await api.delete(`/api/admin/tools/${id}`);
+    await loadDashboard();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
 /* =========================
    EVENTS
 ========================= */
-els.loginForm.addEventListener("submit", login);
-els.logoutBtn.addEventListener("click", logout);
-els.refreshAllBtn.addEventListener("click", loadDashboard);
+els.loginForm?.addEventListener("submit", login);
+els.logoutBtn?.addEventListener("click", logout);
+els.refreshAllBtn?.addEventListener("click", loadDashboard);
 
 /* =========================
    INIT
 ========================= */
-if (api.token) {
-  showAdmin();
-  loadDashboard().catch(showLogin);
-} else {
-  showLogin();
-}
+(async function init() {
+  try {
+    if (api.token) {
+      showAdmin();
+      await loadDashboard();
+    } else {
+      showLogin();
+    }
+  } catch (err) {
+    console.error(err);
+    showLogin();
+  }
+})();
