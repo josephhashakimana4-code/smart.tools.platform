@@ -2,30 +2,21 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
-const fs = require("fs");
+const helmet = require("helmet");
+const compression = require("compression");
+const morgan = require("morgan");
+require("dotenv").config();
 
+/* =========================
+   MODELS
+========================= */
 const Tool = require("./models/Tool");
 const BlogPost = require("./models/BlogPost");
 const ErrorLog = require("./models/ErrorLog");
-const Affiliate = require("./models/Affiliate"); // ✅ NEW
-
-require("dotenv").config();
-
-const app = express();
-
-app.set("trust proxy", 1);
-app.use(cors());
-app.use(express.json());
+const Affiliate = require("./models/Affiliate");
 
 /* =========================
-   DATABASE CONNECTION
-========================= */
-mongoose.connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/toolsdb")
-  .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log("MongoDB Error:", err));
-
-/* =========================
-   API ROUTES
+   ROUTES
 ========================= */
 const toolsRoute = require("./routes/tools");
 const contactRoute = require("./routes/contact");
@@ -34,35 +25,77 @@ const analyticsRoute = require("./routes/analytics");
 const blogRoute = require("./routes/blog");
 const businessRoute = require("./routes/business");
 
+/* =========================
+   MIDDLEWARE (SAAS LAYER)
+========================= */
+const auth = require("./middleware/auth");
+const role = require("./middleware/role");
+const createLimiter = require("./middleware/rateLimit");
+
+/* =========================
+   APP INIT
+========================= */
+const app = express();
+
+app.set("trust proxy", 1);
+
+/* =========================
+   SECURITY MIDDLEWARE
+========================= */
+app.use(helmet());
+app.use(compression());
+app.use(morgan("dev"));
+app.use(cors());
+app.use(express.json());
+
+/* =========================
+   GLOBAL RATE LIMIT
+   (per IP or per user if logged in)
+========================= */
+app.use(
+  createLimiter({
+    windowMs: 60 * 1000,
+    max: 120
+  })
+);
+
+/* =========================
+   DATABASE CONNECTION
+========================= */
+mongoose
+  .connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/toolsdb")
+  .then(() => console.log("MongoDB Connected"))
+  .catch((err) => console.log("MongoDB Error:", err));
+
+/* =========================
+   API ROUTES
+========================= */
 app.use("/api/tools", toolsRoute);
 app.use("/api/contact", contactRoute);
-app.use("/api/admin", adminRoute);
 app.use("/api/analytics", analyticsRoute);
 app.use("/api/blog", blogRoute);
 app.use("/api/business", businessRoute);
 
 /* =========================
-   🚀 AFFILIATE /GO ROUTE (PRO VERSION)
+   ADMIN ROUTES (PROTECTED)
 ========================= */
+app.use("/api/admin", auth, role("admin"), adminRoute);
 
+/* =========================
+   AFFILIATE REDIRECT SYSTEM
+========================= */
 app.get("/go/:tool", async (req, res) => {
   try {
     const tool = req.params.tool.toLowerCase();
 
     const record = await Affiliate.findOne({ key: tool, active: true });
 
-    if (record) {
-      // track clicks
-      record.clicks = (record.clicks || 0) + 1;
-      await record.save();
+    if (!record) return res.redirect("/");
 
-      // redirect to affiliate link OR base link
-      return res.redirect(302, record.affiliate_url || record.base_url);
-    }
+    record.clicks = (record.clicks || 0) + 1;
+    await record.save();
 
-    // fallback if not found
-    return res.redirect(302, "/");
-
+    return res.redirect(record.affiliate_url || record.base_url);
   } catch (err) {
     console.error("GO ROUTE ERROR:", err);
 
@@ -78,7 +111,7 @@ app.get("/go/:tool", async (req, res) => {
 });
 
 /* =========================
-   FRONTEND SETUP
+   STATIC FRONTEND
 ========================= */
 const frontendPath = path.join(__dirname, "frontend");
 
@@ -88,6 +121,9 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
+/* =========================
+   STATIC PAGES ROUTING
+========================= */
 const pages = [
   "tool.html",
   "admin.html",
@@ -113,7 +149,7 @@ pages.forEach((page) => {
 });
 
 /* =========================
-   DOWNLOAD STATIC FILES
+   DOWNLOAD FILES
 ========================= */
 app.use("/download", express.static(path.join(__dirname, "converted")));
 
@@ -123,19 +159,21 @@ app.use("/download", express.static(path.join(__dirname, "converted")));
 app.get("/robots.txt", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-  res.type("text/plain").send([
-    "User-agent: *",
-    "Disallow: /admin",
-    "Disallow: /dashboard",
-    "Disallow: /admin.html",
-    "Disallow: /api/admin",
-    "Allow: /",
-    `Sitemap: ${baseUrl}/sitemap.xml`
-  ].join("\n"));
+  res.type("text/plain").send(
+    [
+      "User-agent: *",
+      "Disallow: /admin",
+      "Disallow: /dashboard",
+      "Disallow: /admin.html",
+      "Disallow: /api/admin",
+      "Allow: /",
+      `Sitemap: ${baseUrl}/sitemap.xml`
+    ].join("\n")
+  );
 });
 
 /* =========================
-   SITEMAP.XML
+   SITEMAP GENERATION
 ========================= */
 app.get("/sitemap.xml", async (req, res) => {
   try {
@@ -143,7 +181,9 @@ app.get("/sitemap.xml", async (req, res) => {
 
     const [tools, posts] = await Promise.all([
       Tool.find({ status: "active" }).select("slug lastViewedAt"),
-      BlogPost.find({ status: "published" }).select("slug updatedAt publishedAt")
+      BlogPost.find({ status: "published" }).select(
+        "slug updatedAt publishedAt"
+      )
     ]);
 
     const urls = [
@@ -155,29 +195,38 @@ app.get("/sitemap.xml", async (req, res) => {
       { loc: `${baseUrl}/white-label`, priority: "0.7" },
       { loc: `${baseUrl}/ai-tools`, priority: "0.7" },
 
-      ...tools.map(tool => ({
-        loc: `${baseUrl}/tool.html?slug=${encodeURIComponent(tool.slug)}`,
-        lastmod: tool.lastViewedAt,
+      ...tools.map((t) => ({
+        loc: `${baseUrl}/tool.html?slug=${encodeURIComponent(t.slug)}`,
+        lastmod: t.lastViewedAt,
         priority: "0.9"
       })),
 
-      ...posts.map(post => ({
-        loc: `${baseUrl}/blog/${encodeURIComponent(post.slug)}`,
-        lastmod: post.updatedAt || post.publishedAt,
+      ...posts.map((p) => ({
+        loc: `${baseUrl}/blog/${encodeURIComponent(p.slug)}`,
+        lastmod: p.updatedAt || p.publishedAt,
         priority: "0.7"
       }))
     ];
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(url => `
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls
+  .map(
+    (u) => `
   <url>
-    <loc>${url.loc}</loc>
-    ${url.lastmod ? `<lastmod>${new Date(url.lastmod).toISOString()}</lastmod>` : ""}
-    <priority>${url.priority}</priority>
-  </url>`).join("\n")}
+    <loc>${u.loc}</loc>
+    ${
+      u.lastmod
+        ? `<lastmod>${new Date(u.lastmod).toISOString()}</lastmod>`
+        : ""
+    }
+    <priority>${u.priority}</priority>
+  </url>`
+  )
+  .join("\n")}
 </urlset>`;
 
     res.type("application/xml").send(xml);
-
   } catch (err) {
     console.error("Sitemap error:", err);
     res.status(500).send("Failed to generate sitemap.");
@@ -208,10 +257,10 @@ app.get(Object.keys(legacyToolPages), (req, res) => {
 /* =========================
    ERROR HANDLING
 ========================= */
-app.use((err, req, res, next) => {
+app.use(async (err, req, res, next) => {
   console.error("Unhandled server error:", err);
 
-  ErrorLog.create({
+  await ErrorLog.create({
     type: "server",
     message: err.message,
     stack: err.stack,
