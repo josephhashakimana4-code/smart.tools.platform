@@ -25,6 +25,7 @@ app.use(
 
 app.use(compression());
 app.use(morgan("combined"));
+
 app.use(
   cors({
     origin: "*",
@@ -33,12 +34,6 @@ app.use(
 );
 
 app.use(express.json({ limit: "2mb" }));
-
-/* =========================
-   GLOBAL ASYNC WRAPPER
-========================= */
-const asyncHandler = (fn) => (req, res, next) =>
-  Promise.resolve(fn(req, res, next)).catch(next);
 
 /* =========================
    MODELS
@@ -61,13 +56,11 @@ const businessRoute = require("./routes/business");
 /* =========================
    MIDDLEWARES
 ========================= */
-const auth = require("./middlewares/auth");
-const role = require("./middlewares/role");
 const createLimiter = require("./middlewares/rateLimiter");
 const errorHandler = require("./middlewares/errorHandler");
 
 /* =========================
-   RATE LIMIT (GLOBAL SAFETY)
+   RATE LIMIT
 ========================= */
 app.use(
   createLimiter({
@@ -77,7 +70,7 @@ app.use(
 );
 
 /* =========================
-   DB CONNECTION (ROBUST)
+   DB CONNECTION
 ========================= */
 mongoose
   .connect(process.env.MONGO_URI)
@@ -88,7 +81,13 @@ mongoose
   });
 
 /* =========================
-   API ROUTES
+   IMPORTANT FIX HERE
+   ADMIN ROUTE MUST NOT BE PROTECTED GLOBALLY
+========================= */
+app.use("/api/admin", adminRoute);
+
+/* =========================
+   PUBLIC API ROUTES
 ========================= */
 app.use("/api/tools", toolsRoute);
 app.use("/api/contact", contactRoute);
@@ -96,15 +95,11 @@ app.use("/api/analytics", analyticsRoute);
 app.use("/api/blog", blogRoute);
 app.use("/api/business", businessRoute);
 
-/* IMPORTANT: ADMIN PROTECTION */
-app.use("/api/admin", auth, role("admin"), adminRoute);
-
 /* =========================
-   AFFILIATE SYSTEM (SAFE)
+   AFFILIATE SYSTEM
 ========================= */
-app.get(
-  "/go/:tool",
-  asyncHandler(async (req, res) => {
+app.get("/go/:tool", async (req, res) => {
+  try {
     const record = await Affiliate.findOne({
       key: req.params.tool.toLowerCase(),
       active: true
@@ -116,8 +111,11 @@ app.get(
     await record.save();
 
     return res.redirect(record.affiliate_url || record.base_url);
-  })
-);
+  } catch (err) {
+    console.error(err);
+    return res.redirect("/");
+  }
+});
 
 /* =========================
    STATIC FRONTEND
@@ -151,10 +149,6 @@ pages.forEach((page) => {
   app.get(route, (req, res) => {
     res.sendFile(path.join(frontendPath, page));
   });
-
-  app.get(`/${page}`, (req, res) => {
-    res.sendFile(path.join(frontendPath, page));
-  });
 });
 
 /* =========================
@@ -163,7 +157,7 @@ pages.forEach((page) => {
 app.use("/download", express.static(path.join(__dirname, "converted")));
 
 /* =========================
-   ROBOTS
+   ROBOTS.TXT
 ========================= */
 app.get("/robots.txt", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
@@ -178,36 +172,33 @@ Sitemap: ${baseUrl}/sitemap.xml
 });
 
 /* =========================
-   SITEMAP (LIGHTWEIGHT + FAST)
+   SIMPLE SITEMAP
 ========================= */
-app.get(
-  "/sitemap.xml",
-  asyncHandler(async (req, res) => {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+app.get("/sitemap.xml", (req, res) => {
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-    const urls = [
-      `${baseUrl}/`,
-      `${baseUrl}/blog`,
-      `${baseUrl}/pricing`,
-      `${baseUrl}/ai-tools`
-    ];
+  const urls = [
+    "/",
+    "/blog",
+    "/pricing",
+    "/ai-tools"
+  ];
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls
   .map(
     (u) => `
   <url>
-    <loc>${u}</loc>
+    <loc>${baseUrl + u}</loc>
     <priority>0.8</priority>
   </url>`
   )
   .join("\n")}
 </urlset>`;
 
-    res.type("application/xml").send(xml);
-  })
-);
+  res.type("application/xml").send(xml);
+});
 
 /* =========================
    LEGACY REDIRECTS
@@ -223,7 +214,7 @@ app.get(Object.keys(legacyToolPages), (req, res) => {
 });
 
 /* =========================
-   ERROR HANDLING (FINAL LAYER)
+   ERROR HANDLER (LAST)
 ========================= */
 app.use((err, req, res, next) => {
   console.error("Server Error:", err);
@@ -242,10 +233,10 @@ app.use((err, req, res, next) => {
 });
 
 /* =========================
-   GRACEFUL SHUTDOWN (RENDER SAFE)
+   GRACEFUL SHUTDOWN
 ========================= */
 process.on("SIGTERM", async () => {
-  console.log("SIGTERM received - shutting down gracefully");
+  console.log("SIGTERM received");
   await mongoose.connection.close();
   process.exit(0);
 });
