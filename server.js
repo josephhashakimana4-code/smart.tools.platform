@@ -30,7 +30,7 @@ const businessRoute = require("./routes/business");
 ========================= */
 const auth = require("./middlewares/auth");
 const role = require("./middlewares/role");
-const createLimiter = require("./middlewares/rateLimit");
+const createLimiter = require("./middlewares/rateLimiter");
 
 /* =========================
    APP INIT
