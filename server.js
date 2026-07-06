@@ -8,6 +8,37 @@ const morgan = require("morgan");
 require("dotenv").config();
 
 /* =========================
+   CORE APP
+========================= */
+const app = express();
+app.set("trust proxy", 1);
+
+/* =========================
+   SECURITY HARDENING (SAAS)
+========================= */
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
+  })
+);
+
+app.use(compression());
+app.use(morgan("combined"));
+app.use(cors({
+  origin: "*",
+  credentials: true
+}));
+
+app.use(express.json({ limit: "2mb" }));
+
+/* =========================
+   GLOBAL ERROR WRAPPER (IMPORTANT)
+========================= */
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+/* =========================
    MODELS
 ========================= */
 const Tool = require("./models/Tool");
@@ -26,31 +57,15 @@ const blogRoute = require("./routes/blog");
 const businessRoute = require("./routes/business");
 
 /* =========================
-   MIDDLEWARE (SAAS LAYER)
+   MIDDLEWARES (SAAS LAYER)
 ========================= */
 const auth = require("./middlewares/auth");
 const role = require("./middlewares/role");
 const createLimiter = require("./middlewares/rateLimiter");
+const errorHandler = require("./middlewares/errorHandler");
 
 /* =========================
-   APP INIT
-========================= */
-const app = express();
-
-app.set("trust proxy", 1);
-
-/* =========================
-   SECURITY MIDDLEWARE
-========================= */
-app.use(helmet());
-app.use(compression());
-app.use(morgan("dev"));
-app.use(cors());
-app.use(express.json());
-
-/* =========================
-   GLOBAL RATE LIMIT
-   (per IP or per user if logged in)
+   RATE LIMIT (GLOBAL)
 ========================= */
 app.use(
   createLimiter({
@@ -60,12 +75,15 @@ app.use(
 );
 
 /* =========================
-   DATABASE CONNECTION
+   DB CONNECTION (SAFETY IMPROVED)
 ========================= */
 mongoose
-  .connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/toolsdb")
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log("MongoDB Error:", err));
+  .catch((err) => {
+    console.error("MongoDB Error:", err);
+    process.exit(1);
+  });
 
 /* =========================
    API ROUTES
@@ -75,20 +93,20 @@ app.use("/api/contact", contactRoute);
 app.use("/api/analytics", analyticsRoute);
 app.use("/api/blog", blogRoute);
 app.use("/api/business", businessRoute);
-
-/* =========================
-   ADMIN ROUTES (PROTECTED)
-========================= */
 app.use("/api/admin", auth, role("admin"), adminRoute);
 
 /* =========================
-   AFFILIATE REDIRECT SYSTEM
+   AFFILIATE SYSTEM (SAFE VERSION)
 ========================= */
-app.get("/go/:tool", async (req, res) => {
-  try {
-    const tool = req.params.tool.toLowerCase();
+app.get(
+  "/go/:tool",
+  asyncHandler(async (req, res) => {
+    const Affiliate = require("./models/Affiliate");
 
-    const record = await Affiliate.findOne({ key: tool, active: true });
+    const record = await Affiliate.findOne({
+      key: req.params.tool.toLowerCase(),
+      active: true
+    });
 
     if (!record) return res.redirect("/");
 
@@ -96,19 +114,8 @@ app.get("/go/:tool", async (req, res) => {
     await record.save();
 
     return res.redirect(record.affiliate_url || record.base_url);
-  } catch (err) {
-    console.error("GO ROUTE ERROR:", err);
-
-    await ErrorLog.create({
-      type: "affiliate_redirect",
-      message: err.message,
-      stack: err.stack,
-      path: req.originalUrl
-    }).catch(() => {});
-
-    return res.status(500).send("Redirect error");
-  }
-});
+  })
+);
 
 /* =========================
    STATIC FRONTEND
@@ -122,7 +129,7 @@ app.get("/", (req, res) => {
 });
 
 /* =========================
-   STATIC PAGES ROUTING
+   DYNAMIC PAGE ROUTING
 ========================= */
 const pages = [
   "tool.html",
@@ -149,63 +156,42 @@ pages.forEach((page) => {
 });
 
 /* =========================
-   DOWNLOAD FILES
+   DOWNLOADS
 ========================= */
 app.use("/download", express.static(path.join(__dirname, "converted")));
 
 /* =========================
-   ROBOTS.TXT
+   ROBOTS
 ========================= */
 app.get("/robots.txt", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-  res.type("text/plain").send(
-    [
-      "User-agent: *",
-      "Disallow: /admin",
-      "Disallow: /dashboard",
-      "Disallow: /admin.html",
-      "Disallow: /api/admin",
-      "Allow: /",
-      `Sitemap: ${baseUrl}/sitemap.xml`
-    ].join("\n")
-  );
+  res.type("text/plain").send(`
+User-agent: *
+Disallow: /admin
+Disallow: /api/admin
+Allow: /
+Sitemap: ${baseUrl}/sitemap.xml
+  `.trim());
 });
 
 /* =========================
-   SITEMAP GENERATION
+   SITEMAP (OPTIMIZED)
 ========================= */
-app.get("/sitemap.xml", async (req, res) => {
-  try {
+app.get(
+  "/sitemap.xml",
+  asyncHandler(async (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     const [tools, posts] = await Promise.all([
       Tool.find({ status: "active" }).select("slug lastViewedAt"),
-      BlogPost.find({ status: "published" }).select(
-        "slug updatedAt publishedAt"
-      )
+      BlogPost.find({ status: "published" }).select("slug updatedAt publishedAt")
     ]);
 
     const urls = [
-      { loc: `${baseUrl}/`, priority: "1.0" },
-      { loc: `${baseUrl}/blog`, priority: "0.8" },
-      { loc: `${baseUrl}/pricing`, priority: "0.8" },
-      { loc: `${baseUrl}/api-marketplace`, priority: "0.8" },
-      { loc: `${baseUrl}/advertise`, priority: "0.8" },
-      { loc: `${baseUrl}/white-label`, priority: "0.7" },
-      { loc: `${baseUrl}/ai-tools`, priority: "0.7" },
-
-      ...tools.map((t) => ({
-        loc: `${baseUrl}/tool.html?slug=${encodeURIComponent(t.slug)}`,
-        lastmod: t.lastViewedAt,
-        priority: "0.9"
-      })),
-
-      ...posts.map((p) => ({
-        loc: `${baseUrl}/blog/${encodeURIComponent(p.slug)}`,
-        lastmod: p.updatedAt || p.publishedAt,
-        priority: "0.7"
-      }))
+      `${baseUrl}/`,
+      `${baseUrl}/blog`,
+      `${baseUrl}/pricing`
     ];
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -214,40 +200,24 @@ ${urls
   .map(
     (u) => `
   <url>
-    <loc>${u.loc}</loc>
-    ${
-      u.lastmod
-        ? `<lastmod>${new Date(u.lastmod).toISOString()}</lastmod>`
-        : ""
-    }
-    <priority>${u.priority}</priority>
+    <loc>${u}</loc>
+    <priority>0.8</priority>
   </url>`
   )
   .join("\n")}
 </urlset>`;
 
     res.type("application/xml").send(xml);
-  } catch (err) {
-    console.error("Sitemap error:", err);
-    res.status(500).send("Failed to generate sitemap.");
-  }
-});
+  })
+);
 
 /* =========================
    LEGACY REDIRECTS
 ========================= */
 const legacyToolPages = {
   "/calculator.html": "calculator",
-  "/percentagecalculator.html": "percentage-calculator",
-  "/percentage-calculator.html": "percentage-calculator",
   "/bmi-calculator.html": "bmi-calculator",
-  "/age-calculator.html": "age-calculator",
-  "/unit-converter.html": "unit-converter",
-  "/pdf-to-word.html": "pdf-to-word",
-  "/word-to-pdf.html": "word-to-pdf",
-  "/merge-pdf.html": "merge-pdf",
-  "/split-pdf.html": "split-pdf",
-  "/pdf-compressor.html": "pdf-compressor"
+  "/unit-converter.html": "unit-converter"
 };
 
 app.get(Object.keys(legacyToolPages), (req, res) => {
@@ -255,19 +225,18 @@ app.get(Object.keys(legacyToolPages), (req, res) => {
 });
 
 /* =========================
-   ERROR HANDLING
+   ERROR HANDLER (FINAL LAYER)
 ========================= */
-app.use(async (err, req, res, next) => {
-  console.error("Unhandled server error:", err);
+app.use(errorHandler);
 
-  await ErrorLog.create({
-    type: "server",
-    message: err.message,
-    stack: err.stack,
-    path: req.originalUrl
-  }).catch(() => {});
-
-  res.status(500).json({ message: "Something went wrong." });
+/* =========================
+   GRACEFUL SHUTDOWN (IMPORTANT FOR RENDER)
+========================= */
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received. shutting down...");
+  mongoose.connection.close(false, () => {
+    process.exit(0);
+  });
 });
 
 /* =========================
