@@ -8,8 +8,8 @@ body {
 }
 
 .hidden { display: none !important; }
+.muted { display: block; color: #64748b; font-size: 13px; margin-top: 4px; }
 
-/* ================= LOGIN ================= */
 .login-screen {
   min-height: 100vh;
   display: grid;
@@ -28,14 +28,12 @@ body {
   box-shadow: 0 25px 70px rgba(0, 0, 0, 0.35);
 }
 
-/* ================= ADMIN APP ================= */
 .admin-app {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
 }
 
-/* ================= SIDEBAR ================= */
 .admin-sidebar {
   position: sticky;
   top: 0;
@@ -57,7 +55,6 @@ body {
 
 .brand span { color: #93c5fd; font-size: 13px; }
 
-/* NEW: ROLE BADGE */
 .role-badge {
   margin-top: 6px;
   font-size: 11px;
@@ -68,7 +65,6 @@ body {
   width: fit-content;
 }
 
-/* ================= MENU ================= */
 .admin-menu { display: grid; gap: 8px; }
 
 .menu-btn,
@@ -101,7 +97,6 @@ body {
   color: #fecdd3;
 }
 
-/* ================= MAIN ================= */
 .admin-main { min-width: 0; }
 
 .admin-header {
@@ -116,15 +111,12 @@ body {
 
 .admin-header h1 { margin: 8px 0 6px; font-size: 30px; }
 .admin-header p { margin: 0; color: #64748b; }
-
+.header-actions { display: flex; gap: 10px; align-items: center; }
 .back-link { color: #1d4ed8; text-decoration: none; font-weight: 700; }
-
-.admin-shell { padding: 20px; }
-
+.admin-shell { padding: 20px; display: grid; gap: 18px; }
 .admin-section { display: none; }
 .admin-section.active { display: block; }
 
-/* ================= STATS ================= */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -132,19 +124,20 @@ body {
   margin-bottom: 18px;
 }
 
-.stat-card, .panel {
+.compact-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.stat-card,
+.panel {
   background: white;
   border: 1px solid #e1e7f0;
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
-.stat-card { padding: 16px; }
+.stat-card { padding: 16px; min-height: 104px; }
 .stat-card span { display: block; margin-bottom: 8px; color: #64748b; font-size: 13px; }
-.stat-card strong { font-size: 26px; }
-
-/* ================= PANELS ================= */
-.panel { padding: 16px; }
+.stat-card strong { font-size: 25px; overflow-wrap: anywhere; }
+.panel { padding: 16px; margin-bottom: 18px; }
 
 .panel-header {
   display: flex;
@@ -157,15 +150,39 @@ body {
 .panel-header h2 { margin: 0 0 4px; font-size: 20px; }
 .panel-header p { margin: 0; color: #64748b; font-size: 13px; }
 
-/* ================= GRID ================= */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
 
-/* ================= FORMS ================= */
-input, select, textarea {
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 180px 220px;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.form-grid .wide { grid-column: 1 / -1; }
+
+label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -175,51 +192,54 @@ input, select, textarea {
   transition: 0.2s;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: none;
   border-color: #1d4ed8;
   box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
 }
 
-/* ================= BUTTONS ================= */
-.primary-btn, .secondary-btn, .danger-btn, .small-btn {
+.primary-btn,
+.secondary-btn,
+.danger-btn,
+.small-btn {
   border: none;
   border-radius: 8px;
   padding: 10px 12px;
   cursor: pointer;
   font-weight: 700;
   transition: 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
 }
 
 .primary-btn { background: #1d4ed8; color: white; }
 .primary-btn:hover { background: #1e40af; }
-
 .secondary-btn { background: #e2e8f0; color: #172033; }
 .secondary-btn:hover { background: #cbd5e1; }
-
 .danger-btn { background: #fee2e2; color: #991b1b; }
+.small-btn { padding: 7px 9px; font-size: 12px; }
+.as-link { text-decoration: none; }
 
-/* ================= TABLE ================= */
+.message {
+  min-height: 20px;
+  color: #166534;
+  font-weight: 700;
+}
+
+.message.error { color: #b91c1c; }
+.message.success { color: #166534; }
+
 .table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid #e2e8f0; padding: 12px 10px; font-size: 14px; vertical-align: top; }
+th { color: #475569; font-size: 12px; text-transform: uppercase; text-align: left; }
+.actions-cell { display: flex; gap: 8px; align-items: center; }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th, td {
-  border-bottom: 1px solid #e2e8f0;
-  padding: 12px 10px;
-  font-size: 14px;
-}
-
-th {
-  color: #475569;
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
-/* ================= BADGES ================= */
 .badge {
   display: inline-block;
   border-radius: 999px;
@@ -232,7 +252,6 @@ th {
 
 .badge.inactive { background: #f1f5f9; color: #475569; }
 
-/* ================= RANK LIST ================= */
 .rank-list { display: grid; gap: 10px; }
 
 .rank-item {
@@ -244,55 +263,53 @@ th {
   border-radius: 8px;
 }
 
-/* ================= GUIDE ================= */
-.admin-guide {
-  padding: 12px;
+.rank-metrics { font-weight: 800; color: #172033; text-align: right; }
+.empty-state { color: #64748b; margin: 0; padding: 10px 0; }
+
+.quick-links {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quick-links a {
+  padding: 14px;
+  border: 1px solid #dbe4ef;
   border-radius: 8px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e3a8a;
-  margin-bottom: 14px;
+  color: #1d4ed8;
+  text-decoration: none;
+  font-weight: 800;
+  background: #f8fafc;
 }
 
-/* ================= NEW: CLICK ANALYTICS ================= */
-#clickAnalyticsSection .panel {
-  border-left: 4px solid #1d4ed8;
+.system-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
 }
 
-#earningsChart {
-  margin-top: 12px;
-  height: 260px !important;
+.system-grid div {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
 }
 
-/* ================= NEW: AFFILIATE GENERATOR ================= */
-#affiliateGenSection .panel {
-  border-left: 4px solid #10b981;
-}
+.system-grid span { display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }
+.system-grid strong { overflow-wrap: anywhere; }
+canvas { max-width: 100%; max-height: 320px; }
 
-#affiliateSuggestions {
-  margin-top: 12px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-
-/* ================= NEW: ROUTING ================= */
-#routingSection .panel {
-  border-left: 4px solid #f59e0b;
-}
-
-/* ================= MOBILE ================= */
 @media (max-width: 1200px) {
   .stats-grid { grid-template-columns: repeat(3, 1fr); }
-  .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-grid, .quick-links { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 1000px) {
   .admin-app { grid-template-columns: 1fr; }
   .admin-sidebar { position: static; height: auto; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .toolbar, .form-grid, .system-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 700px) {
-  .stats-grid { grid-template-columns: 1fr; }
-  .panel-header { flex-direction: column; align-items: flex-start; }
+  .admin-header, .panel-header { flex-direction: column; align-items: flex-start; }
+  .stats-grid, .compact-stats, .dashboard-grid, .quick-links { grid-template-columns: 1fr; }
 }
