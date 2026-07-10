@@ -1,7 +1,7 @@
 const API_BASE =
   window.location.hostname === "localhost"
     ? "http://localhost:5000"
-    : "https://YOUR-RENDER-BACKEND.onrender.com"; // 🔴 CHANGE THIS
+        : window.location.origin;
 
 const TOKEN_KEY = "smartToolsAdminToken";
 
