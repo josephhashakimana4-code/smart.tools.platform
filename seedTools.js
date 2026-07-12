@@ -320,8 +320,12 @@ async function seedTools() {
   await mongoose.disconnect();
 }
 
-seedTools().catch(async (err) => {
-  console.error(err);
-  await mongoose.disconnect();
-  process.exit(1);
-});
+module.exports = { tools, seedTools };
+
+if (require.main === module) {
+  seedTools().catch(async (err) => {
+    console.error(err);
+    await mongoose.disconnect();
+    process.exit(1);
+  });
+}

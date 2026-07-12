@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const path = require("path");
 const fs = require("fs");
@@ -11,6 +12,7 @@ const { PDFParse } = require("pdf-parse");
 const Tool = require("../models/Tool");
 const ConvertedFile = require("../models/ConvertedFile");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
+const { getFallbackTools, getFallbackToolBySlug } = require("../config/fallbackTools");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -486,16 +488,30 @@ router.get("/:slug/affiliate", async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.json(getFallbackTools());
+    }
+
     const tools = await Tool.find({ status: "active" }).sort({ name: 1 });
     res.json(tools);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch tools" });
+    console.error("Tools fetch error:", err);
+    return res.json(getFallbackTools());
   }
 });
 
 router.get("/:slug", async (req, res) => {
   try {
     const slug = normalizeSlug(req.params.slug);
+
+    if (mongoose.connection.readyState !== 1) {
+      const tool = getFallbackToolBySlug(slug);
+      if (!tool) {
+        return res.status(404).json({ error: "Tool not found" });
+      }
+      return res.json(tool);
+    }
+
     const tool = await Tool.findOne({
       slug,
       status: "active"
@@ -507,7 +523,8 @@ router.get("/:slug", async (req, res) => {
 
     res.json(tool);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch tool" });
+    console.error("Tool fetch error:", err);
+    return res.json(getFallbackToolBySlug(normalizeSlug(req.params.slug)) || { error: "Tool not found" });
   }
 });
 

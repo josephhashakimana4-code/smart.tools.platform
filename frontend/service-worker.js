@@ -1,7 +1,9 @@
+const CACHE_NAME = "smart-tools-hub-v10";
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key !== "smart-tools-hub-v8").map((key) => caches.delete(key))
+      keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
     ))
   );
   self.clients.claim();
@@ -9,9 +11,10 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open("smart-tools-hub-v8").then((cache) => cache.addAll([
+    caches.open(CACHE_NAME).then((cache) => cache.addAll([
       "/",
       "/index.html",
+      "/admin.html",
       "/advertise.html",
       "/tool.html",
       "/css/index.css",
@@ -33,7 +36,7 @@ self.addEventListener("fetch", (event) => {
     fetch(event.request)
       .then((response) => {
         const copy = response.clone();
-        caches.open("smart-tools-hub-v8").then((cache) => cache.put(event.request, copy));
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;
       })
       .catch(() => caches.match(event.request))

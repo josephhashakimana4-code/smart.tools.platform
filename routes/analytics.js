@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
 const SearchLog = require("../models/SearchLog");
 const Tool = require("../models/Tool");
@@ -19,8 +20,16 @@ function detectSource(referrer = "") {
   return "referral";
 }
 
+function isDbReady() {
+  return mongoose.connection.readyState === 1;
+}
+
 router.post("/event", async (req, res) => {
   try {
+    if (!isDbReady()) {
+      return res.json({ success: true, stored: false, reason: "database-unavailable" });
+    }
+
     const body = req.body || {};
     const type = String(body.type || "page_view").trim();
     await AnalyticsEvent.create({
@@ -42,6 +51,10 @@ router.post("/event", async (req, res) => {
 
 router.post("/search", async (req, res) => {
   try {
+    if (!isDbReady()) {
+      return res.json({ success: true, stored: false, reason: "database-unavailable" });
+    }
+
     const query = String(req.body.query || "").trim().slice(0, 160);
     if (!query) return res.json({ success: true, skipped: true });
 
@@ -59,6 +72,10 @@ router.post("/search", async (req, res) => {
 
 router.post("/newsletter", async (req, res) => {
   try {
+    if (!isDbReady()) {
+      return res.json({ success: true, stored: false, reason: "database-unavailable" });
+    }
+
     const email = String(req.body.email || "").trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ message: "Enter a valid email address." });
@@ -74,6 +91,10 @@ router.post("/newsletter", async (req, res) => {
 
 router.get("/ads", async (req, res) => {
   try {
+    if (!isDbReady()) {
+      return res.json([]);
+    }
+
     const position = String(req.query.position || "").trim();
     const query = { active: true };
     if (position) query.position = position;
@@ -87,6 +108,10 @@ router.get("/ads", async (req, res) => {
 
 router.post("/ads/:id/click", async (req, res) => {
   try {
+    if (!isDbReady()) {
+      return res.json({ success: true, tracked: false, reason: "database-unavailable" });
+    }
+
     await Ad.findByIdAndUpdate(req.params.id, { $inc: { clicks: 1 } });
     res.json({ success: true });
   } catch (err) {
@@ -96,6 +121,10 @@ router.post("/ads/:id/click", async (req, res) => {
 
 router.get("/related-tools/:slug", async (req, res) => {
   try {
+    if (!isDbReady()) {
+      return res.json({ related: [], popular: [] });
+    }
+
     const current = await Tool.findOne({ slug: req.params.slug, status: "active" });
     const related = current
       ? await Tool.find({ _id: { $ne: current._id }, category: current.category, status: "active" }).sort({ views: -1 }).limit(4)

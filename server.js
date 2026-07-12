@@ -72,12 +72,13 @@ app.use(
 /* =========================
    DB CONNECTION
 ========================= */
+const mongoUri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/smarttools";
+
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(mongoUri)
   .then(() => console.log("MongoDB Connected"))
   .catch((err) => {
-    console.error("MongoDB Error:", err);
-    process.exit(1);
+    console.warn("MongoDB unavailable, continuing without database:", err.message);
   });
 
 /* =========================
@@ -94,6 +95,26 @@ app.use("/api/contact", contactRoute);
 app.use("/api/analytics", analyticsRoute);
 app.use("/api/blog", blogRoute);
 app.use("/api/business", businessRoute);
+
+app.get("/health", (req, res) => {
+  res.json({
+    ok: true,
+    status: "healthy",
+    service: "smart-tools-platform",
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    status: "healthy",
+    service: "smart-tools-platform",
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
+  });
+});
 
 /* =========================
    AFFILIATE SYSTEM
@@ -122,11 +143,15 @@ app.get("/go/:tool", async (req, res) => {
 ========================= */
 const frontendPath = path.join(__dirname, "frontend");
 
-app.use(express.static(frontendPath));
-
-app.get("/", (req, res) => {
+app.get(["/", "/index.html"], (req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
+
+app.get(["/admin", "/admin.html"], (req, res) => {
+  res.sendFile(path.join(frontendPath, "admin.html"));
+});
+
+app.use(express.static(frontendPath));
 
 /* =========================
    PAGE ROUTING
