@@ -27,7 +27,7 @@ mongodb+srv://USERNAME:PASSWORD@CLUSTER.mongodb.net/toolsdb?retryWrites=true&w=m
 
 1. Upload this project to GitHub.
 2. In Render, create a new Web Service from the repository.
-3. Set Root Directory to `backend`.
+3. Leave Root Directory as the repository root (or set it to `.`).
 4. Set Build Command to `npm install`.
 5. Set Start Command to `npm start`.
 6. Add environment variables:

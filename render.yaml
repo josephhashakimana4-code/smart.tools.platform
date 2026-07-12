@@ -2,7 +2,6 @@ services:
   - type: web
     name: smart-tools-hub
     env: node
-    rootDir: backend
     plan: free
     buildCommand: npm install
     startCommand: npm start
