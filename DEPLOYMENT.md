@@ -56,10 +56,11 @@ This creates or updates the tools in the online MongoDB database.
 
 ## 4. Admin Dashboard
 
-Open:
+Current live preview links:
 
 ```text
-https://your-domain.com/admin.html
+Website: https://cautious-telegram-7vg6prpxg76qhwxpp-5000.app.github.dev/
+Admin: https://cautious-telegram-7vg6prpxg76qhwxpp-5000.app.github.dev/admin
 ```
 
 Login with the `ADMIN_PASSWORD` environment variable you set on Render.
