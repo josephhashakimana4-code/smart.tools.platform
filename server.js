@@ -14,26 +14,75 @@ const app = express();
 app.set("trust proxy", 1);
 
 /* =========================
-   SECURITY LAYER
+   ENHANCED SECURITY LAYER
 ========================= */
+// Enhanced helmet configuration
 app.use(
   helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"]
+      }
+    },
+    crossOriginEmbedderPolicy: true,
+    crossOriginOpenerPolicy: true,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    dnsPrefetchControl: { allow: false },
+    frameguard: { action: "deny" },
+    hidePoweredBy: true,
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    ieNoOpen: true,
+    noSniff: true,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    xssFilter: true
   })
 );
 
 app.use(compression());
 app.use(morgan("combined"));
 
+// CORS whitelist - update with your actual domains
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : ["http://localhost:3000", "http://localhost:5000"];
+
 app.use(
   cors({
-    origin: "*",
-    credentials: true
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === "development") {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Admin-Token"],
+    maxAge: 86400
   })
 );
 
 app.use(express.json({ limit: "2mb" }));
+
+/* =========================
+   SECURITY MIDDLEWARE
+========================= */
+const { sanitizeMiddleware, limitBodySize } = require("./middlewares/validation");
+const { csrfProtection, generateCsrfTokenMiddleware } = require("./middlewares/csrf");
+const { auditMiddleware } = require("./middlewares/audit");
+
+app.use(sanitizeMiddleware);
+app.use(limitBodySize("5mb"));
+app.use(generateCsrfTokenMiddleware);
+app.use(auditMiddleware);
 
 /* =========================
    MODELS
@@ -42,10 +91,12 @@ const Tool = require("./models/Tool");
 const BlogPost = require("./models/BlogPost");
 const ErrorLog = require("./models/ErrorLog");
 const Affiliate = require("./models/Affiliate");
+const User = require("./models/User");
 
 /* =========================
    ROUTES
 ========================= */
+const authRoute = require("./routes/auth");
 const toolsRoute = require("./routes/tools");
 const contactRoute = require("./routes/contact");
 const adminRoute = require("./routes/admin");
@@ -58,16 +109,31 @@ const businessRoute = require("./routes/business");
 ========================= */
 const createLimiter = require("./middlewares/rateLimiter");
 const errorHandler = require("./middlewares/errorHandler");
+const { authMiddleware } = require("./middlewares/jwt-auth");
 
 /* =========================
-   RATE LIMIT
+   RATE LIMITING (Granular)
 ========================= */
+// General rate limit: 120 requests per minute
 app.use(
   createLimiter({
     windowMs: 60 * 1000,
     max: 120
   })
 );
+
+// Stricter limit for auth endpoints: 5 requests per 15 minutes
+const authLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  skipSuccessfulRequests: false
+});
+
+// Moderate limit for API endpoints: 30 requests per minute
+const apiLimiter = createLimiter({
+  windowMs: 60 * 1000,
+  max: 30
+});
 
 /* =========================
    DB CONNECTION
@@ -86,6 +152,11 @@ mongoose
    ADMIN ROUTE MUST NOT BE PROTECTED GLOBALLY
 ========================= */
 app.use("/api/admin", adminRoute);
+
+/* =========================
+   AUTHENTICATION ROUTES
+========================= */
+app.use("/api/auth", authLimiter, authRoute);
 
 /* =========================
    PUBLIC API ROUTES
@@ -165,7 +236,15 @@ const pages = [
   "advertise.html",
   "api-marketplace.html",
   "white-label.html",
-  "ai-tools.html"
+  "ai-tools.html",
+  "contact.html",
+  "privacy.html",
+  "terms.html",
+  "cookies.html",
+  "disclaimer.html",
+  "affiliate-disclosure.html",
+  "calculator.html",
+  "pdf-to-word.html"
 ];
 
 pages.forEach((page) => {
@@ -174,6 +253,18 @@ pages.forEach((page) => {
   app.get(route, (req, res) => {
     res.sendFile(path.join(frontendPath, page));
   });
+});
+
+app.get(["/tools", "/tools/"], (req, res) => {
+  res.sendFile(path.join(frontendPath, "tool.html"));
+});
+
+app.get(["/tools/:slug", "/tools/:slug/"], (req, res) => {
+  res.sendFile(path.join(frontendPath, "tool.html"));
+});
+
+app.get(["/blog/:slug", "/blog/:slug/"], (req, res) => {
+  res.sendFile(path.join(frontendPath, "blog-post.html"));
 });
 
 /* =========================
@@ -206,7 +297,20 @@ app.get("/sitemap.xml", (req, res) => {
     "/",
     "/blog",
     "/pricing",
-    "/ai-tools"
+    "/ai-tools",
+    "/advertise",
+    "/api-marketplace",
+    "/white-label",
+    "/contact",
+    "/privacy",
+    "/terms",
+    "/cookies",
+    "/disclaimer",
+    "/affiliate-disclosure",
+    "/calculator",
+    "/pdf-to-word",
+    "/tools/calculator",
+    "/tools/pdf-to-word"
   ];
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -271,6 +375,10 @@ process.on("SIGTERM", async () => {
 ========================= */
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;

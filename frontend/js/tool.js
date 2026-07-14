@@ -98,6 +98,22 @@ function showError(title, message) {
   toolName.innerText = title;
   toolCategory.innerText = "";
   toolBox.innerHTML = `<p>${message}</p>`;
+
+  const fallbackTitle = title === "Tool Not Found" ? "Tool Not Found | Smart Tools Hub" : "Smart Tools Hub";
+  document.title = fallbackTitle;
+  upsertMeta('meta[name="description"]', {
+    name: "description",
+    content: "Browse free online tools and business solutions on Smart Tools Hub."
+  });
+  upsertMeta('meta[property="og:title"]', { property: "og:title", content: fallbackTitle });
+  upsertMeta('meta[property="og:description"]', {
+    property: "og:description",
+    content: "Browse free online tools and business solutions on Smart Tools Hub."
+  });
+  upsertMeta('meta[property="og:url"]', {
+    property: "og:url",
+    content: `${window.location.origin}${window.location.pathname}`
+  });
 }
 
 function setBox(tool, body) {
