@@ -5,380 +5,983 @@ const path = require("path");
 const helmet = require("helmet");
 const compression = require("compression");
 const morgan = require("morgan");
+
 require("dotenv").config();
 
 /* =========================
    CORE APP
 ========================= */
+
 const app = express();
+
 app.set("trust proxy", 1);
 
+
 /* =========================
-   ENHANCED SECURITY LAYER
+   SECURITY HEADERS
 ========================= */
-// Enhanced helmet configuration
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
-        frameSrc: ["'none'"]
+
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'"
+        ],
+
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'"
+        ],
+
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https:"
+        ],
+
+        connectSrc: [
+          "'self'",
+          "https://*.app.github.dev",
+          "https://*.onrender.com"
+        ],
+
+        fontSrc: [
+          "'self'",
+          "https:"
+        ],
+
+        objectSrc: [
+          "'none'"
+        ],
+
+        mediaSrc: [
+          "'self'"
+        ],
+
+        frameSrc: [
+          "'self'"
+        ]
       }
     },
-    crossOriginEmbedderPolicy: true,
-    crossOriginOpenerPolicy: true,
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    dnsPrefetchControl: { allow: false },
-    frameguard: { action: "deny" },
+
+    crossOriginEmbedderPolicy: false,
+
+    crossOriginOpenerPolicy: {
+      policy: "same-origin-allow-popups"
+    },
+
+    crossOriginResourcePolicy: {
+      policy: "cross-origin"
+    },
+
     hidePoweredBy: true,
-    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    ieNoOpen: true,
+
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true
+    },
+
     noSniff: true,
-    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-    xssFilter: true
+
+    referrerPolicy: {
+      policy: "strict-origin-when-cross-origin"
+    }
   })
 );
 
+
 app.use(compression());
+
 app.use(morgan("combined"));
 
-// CORS whitelist - update with your actual domains
-const allowedOrigins = process.env.ALLOWED_ORIGINS
+
+
+/* =========================
+   UPDATED CORS SYSTEM
+========================= */
+
+
+const defaultOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5000",
+  "http://127.0.0.1:5000"
+];
+
+
+const envOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",")
-  : ["http://localhost:3000", "http://localhost:5000"];
+  : [];
+
+
+const allowedOrigins = [
+  ...defaultOrigins,
+  ...envOrigins
+];
+
+
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === "development") {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+
+    origin: function(origin, callback){
+
+      // allow server-to-server requests
+      if(!origin){
+        return callback(null,true);
       }
+
+
+      // exact matches
+      if(
+        allowedOrigins.includes(origin)
+      ){
+        return callback(null,true);
+      }
+
+
+      // GitHub Codespaces
+      if(
+        origin.includes(".app.github.dev")
+      ){
+        return callback(null,true);
+      }
+
+
+      // Render deployment
+      if(
+        origin.includes(".onrender.com")
+      ){
+        return callback(null,true);
+      }
+
+
+      // Development mode
+      if(
+        process.env.NODE_ENV !== "production"
+      ){
+        return callback(null,true);
+      }
+
+
+      console.log(
+        "Blocked CORS origin:",
+        origin
+      );
+
+
+      callback(
+        new Error("Not allowed by CORS")
+      );
+
     },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Admin-Token"],
-    maxAge: 86400
+
+
+    credentials:true,
+
+
+    methods:[
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE",
+      "PATCH",
+      "OPTIONS"
+    ],
+
+
+    allowedHeaders:[
+      "Content-Type",
+      "Authorization",
+      "X-CSRF-Token",
+      "X-Admin-Token"
+    ],
+
+
+    optionsSuccessStatus:200,
+
+
+    maxAge:86400
+
   })
 );
 
-app.use(express.json({ limit: "2mb" }));
+
+
+app.use(
+  express.json({
+    limit:"5mb"
+  })
+);
+
+
 
 /* =========================
-   SECURITY MIDDLEWARE
+ SECURITY MIDDLEWARE
 ========================= */
-const { sanitizeMiddleware, limitBodySize } = require("./middlewares/validation");
-const { csrfProtection, generateCsrfTokenMiddleware } = require("./middlewares/csrf");
-const { auditMiddleware } = require("./middlewares/audit");
+
+
+const {
+  sanitizeMiddleware,
+  limitBodySize
+}=require("./middlewares/validation");
+
+
+const {
+  generateCsrfTokenMiddleware
+}=require("./middlewares/csrf");
+
+
+const {
+  auditMiddleware
+}=require("./middlewares/audit");
+
+
 
 app.use(sanitizeMiddleware);
-app.use(limitBodySize("5mb"));
-app.use(generateCsrfTokenMiddleware);
-app.use(auditMiddleware);
 
-/* =========================
-   MODELS
-========================= */
-const Tool = require("./models/Tool");
-const BlogPost = require("./models/BlogPost");
-const ErrorLog = require("./models/ErrorLog");
-const Affiliate = require("./models/Affiliate");
-const User = require("./models/User");
 
-/* =========================
-   ROUTES
-========================= */
-const authRoute = require("./routes/auth");
-const toolsRoute = require("./routes/tools");
-const contactRoute = require("./routes/contact");
-const adminRoute = require("./routes/admin");
-const analyticsRoute = require("./routes/analytics");
-const blogRoute = require("./routes/blog");
-const businessRoute = require("./routes/business");
-
-/* =========================
-   MIDDLEWARES
-========================= */
-const createLimiter = require("./middlewares/rateLimiter");
-const errorHandler = require("./middlewares/errorHandler");
-const { authMiddleware } = require("./middlewares/jwt-auth");
-
-/* =========================
-   RATE LIMITING (Granular)
-========================= */
-// General rate limit: 120 requests per minute
 app.use(
-  createLimiter({
-    windowMs: 60 * 1000,
-    max: 120
-  })
+  limitBodySize("5mb")
 );
 
-// Stricter limit for auth endpoints: 5 requests per 15 minutes
-const authLimiter = createLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  skipSuccessfulRequests: false
+
+app.use(
+  generateCsrfTokenMiddleware
+);
+
+
+app.use(
+  auditMiddleware
+);
+
+
+
+/* =========================
+ MODELS
+========================= */
+
+
+const Tool=require("./models/Tool");
+
+const BlogPost=require("./models/BlogPost");
+
+const ErrorLog=require("./models/ErrorLog");
+
+const Affiliate=require("./models/Affiliate");
+
+const User=require("./models/User");
+
+
+
+/* =========================
+ ROUTES
+========================= */
+
+
+const authRoute=require("./routes/auth");
+
+const toolsRoute=require("./routes/tools");
+
+const contactRoute=require("./routes/contact");
+
+const adminRoute=require("./routes/admin");
+
+const analyticsRoute=require("./routes/analytics");
+
+const blogRoute=require("./routes/blog");
+
+const businessRoute=require("./routes/business");
+
+
+
+/* =========================
+ RATE LIMIT
+========================= */
+
+
+const createLimiter=require("./middlewares/rateLimiter");
+
+
+app.use(
+ createLimiter({
+   windowMs:60000,
+   max:120
+ })
+);
+
+
+
+const authLimiter=createLimiter({
+
+ windowMs:15*60*1000,
+
+ max:5
+
 });
 
-// Moderate limit for API endpoints: 30 requests per minute
-const apiLimiter = createLimiter({
-  windowMs: 60 * 1000,
-  max: 30
-});
+
 
 /* =========================
-   DB CONNECTION
+ DATABASE CONNECTION
 ========================= */
-const mongoUri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/smarttools";
 
-mongoose
-  .connect(mongoUri)
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => {
-    console.warn("MongoDB unavailable, continuing without database:", err.message);
-  });
+
+const mongoUri =
+process.env.MONGO_URI ||
+null;
+
+
+
+if(mongoUri){
+
+
+ mongoose
+ .connect(mongoUri)
+
+ .then(()=>{
+   console.log(
+    "MongoDB Connected"
+   );
+ })
+
+ .catch(err=>{
+
+   console.warn(
+    "MongoDB connection failed:",
+    err.message
+   );
+
+ });
+
+
+}else{
+
+
+ console.warn(
+  "MONGO_URI missing - running without database"
+ );
+
+
+}
+/* =========================
+   ADMIN ROUTES
+========================= */
+
+app.use(
+  "/api/admin",
+  adminRoute
+);
+
 
 /* =========================
-   IMPORTANT FIX HERE
-   ADMIN ROUTE MUST NOT BE PROTECTED GLOBALLY
+   AUTH ROUTES
 ========================= */
-app.use("/api/admin", adminRoute);
 
-/* =========================
-   AUTHENTICATION ROUTES
-========================= */
-app.use("/api/auth", authLimiter, authRoute);
+app.use(
+  "/api/auth",
+  authLimiter,
+  authRoute
+);
+
+
 
 /* =========================
    PUBLIC API ROUTES
 ========================= */
-app.use("/api/tools", toolsRoute);
-app.use("/api/contact", contactRoute);
-app.use("/api/analytics", analyticsRoute);
-app.use("/api/blog", blogRoute);
-app.use("/api/business", businessRoute);
 
-app.get("/health", (req, res) => {
-  res.json({
-    ok: true,
-    status: "healthy",
-    service: "smart-tools-platform",
-    timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
-  });
-});
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    ok: true,
-    status: "healthy",
-    service: "smart-tools-platform",
-    timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
-  });
-});
+app.use(
+  "/api/tools",
+  toolsRoute
+);
+
+
+app.use(
+  "/api/contact",
+  contactRoute
+);
+
+
+app.use(
+  "/api/analytics",
+  analyticsRoute
+);
+
+
+app.use(
+  "/api/blog",
+  blogRoute
+);
+
+
+app.use(
+  "/api/business",
+  businessRoute
+);
+
+
 
 /* =========================
-   AFFILIATE SYSTEM
+   HEALTH CHECK
 ========================= */
-app.get("/go/:tool", async (req, res) => {
-  try {
-    const record = await Affiliate.findOne({
-      key: req.params.tool.toLowerCase(),
-      active: true
+
+
+const healthResponse = () => ({
+  ok:true,
+
+  status:"healthy",
+
+  service:"smart-tools-platform",
+
+  timestamp:new Date().toISOString(),
+
+  database:
+    mongoose.connection.readyState === 1
+    ? "connected"
+    : "disconnected"
+
+});
+
+
+
+app.get(
+ "/health",
+ (req,res)=>{
+   res.json(
+     healthResponse()
+   );
+ }
+);
+
+
+
+app.get(
+ "/api/health",
+ (req,res)=>{
+   res.json(
+     healthResponse()
+   );
+ }
+);
+
+
+
+/* =========================
+   AFFILIATE REDIRECT SYSTEM
+========================= */
+
+
+app.get(
+ "/go/:tool",
+ async(req,res)=>{
+
+  try{
+
+
+    const record =
+    await Affiliate.findOne({
+
+      key:req.params.tool.toLowerCase(),
+
+      active:true
+
     });
 
-    if (!record) return res.redirect("/");
 
-    record.clicks = (record.clicks || 0) + 1;
+
+    if(!record){
+
+      return res.redirect("/");
+
+    }
+
+
+
+    record.clicks =
+      (record.clicks || 0)+1;
+
+
+
     await record.save();
 
-    return res.redirect(record.affiliate_url || record.base_url);
-  } catch (err) {
-    console.error(err);
+
+
+    return res.redirect(
+      record.affiliate_url ||
+      record.base_url
+    );
+
+
+
+  }catch(error){
+
+    console.error(
+      "Affiliate error:",
+      error
+    );
+
+
     return res.redirect("/");
+
   }
+
 });
+
+
 
 /* =========================
-   STATIC FRONTEND
+   FRONTEND
 ========================= */
-const frontendPath = path.join(__dirname, "frontend");
 
-app.get(["/", "/index.html"], (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
+
+const frontendPath =
+path.join(
+ __dirname,
+ "frontend"
+);
+
+
+
+app.get(
+ ["/","/index.html"],
+ (req,res)=>{
+
+ res.sendFile(
+   path.join(
+    frontendPath,
+    "index.html"
+   )
+ );
+
 });
 
-app.get(["/admin", "/admin.html"], (req, res) => {
-  res.sendFile(path.join(frontendPath, "admin.html"));
+
+
+app.get(
+ ["/admin","/admin.html"],
+ (req,res)=>{
+
+ res.sendFile(
+  path.join(
+   frontendPath,
+   "admin.html"
+  )
+ );
+
 });
 
-app.use(express.static(frontendPath));
+
+
+app.use(
+ express.static(
+  frontendPath
+ )
+);
+
+
 
 /* =========================
-   PAGE ROUTING
+   HTML PAGE ROUTES
 ========================= */
-const pages = [
-  "tool.html",
-  "admin.html",
-  "blog.html",
-  "blog-post.html",
-  "pricing.html",
-  "advertise.html",
-  "api-marketplace.html",
-  "white-label.html",
-  "ai-tools.html",
-  "contact.html",
-  "privacy.html",
-  "terms.html",
-  "cookies.html",
-  "disclaimer.html",
-  "affiliate-disclosure.html",
-  "calculator.html",
-  "pdf-to-word.html"
+
+
+const pages=[
+
+ "tool.html",
+
+ "admin.html",
+
+ "blog.html",
+
+ "blog-post.html",
+
+ "pricing.html",
+
+ "advertise.html",
+
+ "api-marketplace.html",
+
+ "white-label.html",
+
+ "ai-tools.html",
+
+ "contact.html",
+
+ "privacy.html",
+
+ "terms.html",
+
+ "cookies.html",
+
+ "disclaimer.html",
+
+ "affiliate-disclosure.html",
+
+ "calculator.html",
+
+ "pdf-to-word.html"
+
 ];
 
-pages.forEach((page) => {
-  const route = `/${page.replace(".html", "")}`;
 
-  app.get(route, (req, res) => {
-    res.sendFile(path.join(frontendPath, page));
-  });
+
+pages.forEach(page=>{
+
+
+ const route =
+ "/"+page.replace(".html","");
+
+
+ app.get(
+  route,
+  (req,res)=>{
+
+   res.sendFile(
+    path.join(
+     frontendPath,
+     page
+    )
+   );
+
+  }
+ );
+
+
 });
 
-app.get(["/tools", "/tools/"], (req, res) => {
-  res.sendFile(path.join(frontendPath, "tool.html"));
+
+
+app.get(
+ ["/tools","/tools/"],
+ (req,res)=>{
+
+ res.sendFile(
+  path.join(
+   frontendPath,
+   "tool.html"
+  )
+ );
+
 });
 
-app.get(["/tools/:slug", "/tools/:slug/"], (req, res) => {
-  res.sendFile(path.join(frontendPath, "tool.html"));
+
+
+app.get(
+ ["/tools/:slug","/tools/:slug/"],
+ (req,res)=>{
+
+ res.sendFile(
+  path.join(
+   frontendPath,
+   "tool.html"
+  )
+ );
+
 });
 
-app.get(["/blog/:slug", "/blog/:slug/"], (req, res) => {
-  res.sendFile(path.join(frontendPath, "blog-post.html"));
+
+
+app.get(
+ ["/blog/:slug","/blog/:slug/"],
+ (req,res)=>{
+
+ res.sendFile(
+  path.join(
+   frontendPath,
+   "blog-post.html"
+  )
+ );
+
 });
+
+
 
 /* =========================
-   DOWNLOADS
+   DOWNLOAD FILES
 ========================= */
-app.use("/download", express.static(path.join(__dirname, "converted")));
+
+
+app.use(
+ "/download",
+ express.static(
+  path.join(
+   __dirname,
+   "converted"
+  )
+ )
+);
+
+
 
 /* =========================
-   ROBOTS.TXT
+   ROBOTS
 ========================= */
-app.get("/robots.txt", (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-  res.type("text/plain").send(`
+
+app.get(
+ "/robots.txt",
+ (req,res)=>{
+
+
+ const baseUrl =
+ `${req.protocol}://${req.get("host")}`;
+
+
+ res.type(
+  "text/plain"
+ )
+ .send(
+
+`
 User-agent: *
 Disallow: /admin
 Disallow: /api/admin
 Allow: /
+
 Sitemap: ${baseUrl}/sitemap.xml
-  `.trim());
+
+`.trim()
+
+ );
+
+
 });
 
+
+
 /* =========================
-   SIMPLE SITEMAP
+   SITEMAP
 ========================= */
-app.get("/sitemap.xml", (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-  const urls = [
-    "/",
-    "/blog",
-    "/pricing",
-    "/ai-tools",
-    "/advertise",
-    "/api-marketplace",
-    "/white-label",
-    "/contact",
-    "/privacy",
-    "/terms",
-    "/cookies",
-    "/disclaimer",
-    "/affiliate-disclosure",
-    "/calculator",
-    "/pdf-to-word",
-    "/tools/calculator",
-    "/tools/pdf-to-word"
-  ];
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+app.get(
+ "/sitemap.xml",
+ (req,res)=>{
+
+
+ const baseUrl =
+ `${req.protocol}://${req.get("host")}`;
+
+
+
+ const urls=[
+
+ "/",
+
+ "/blog",
+
+ "/pricing",
+
+ "/ai-tools",
+
+ "/advertise",
+
+ "/api-marketplace",
+
+ "/white-label",
+
+ "/contact",
+
+ "/privacy",
+
+ "/terms",
+
+ "/cookies",
+
+ "/disclaimer",
+
+ "/affiliate-disclosure",
+
+ "/calculator",
+
+ "/pdf-to-word",
+
+ "/tools/calculator",
+
+ "/tools/pdf-to-word"
+
+ ];
+
+
+
+ const xml=
+
+`<?xml version="1.0" encoding="UTF-8"?>
+
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls
-  .map(
-    (u) => `
-  <url>
-    <loc>${baseUrl + u}</loc>
-    <priority>0.8</priority>
-  </url>`
-  )
-  .join("\n")}
+
+${urls.map(url=>`
+
+<url>
+
+<loc>${baseUrl+url}</loc>
+
+<priority>0.8</priority>
+
+</url>
+
+`).join("")}
+
 </urlset>`;
 
-  res.type("application/xml").send(xml);
+
+
+ res.type(
+  "application/xml"
+ )
+ .send(xml);
+
+
+
 });
 
+
+
 /* =========================
-   LEGACY REDIRECTS
+   OLD URL REDIRECTS
 ========================= */
-const legacyToolPages = {
-  "/calculator.html": "calculator",
-  "/bmi-calculator.html": "bmi-calculator",
-  "/unit-converter.html": "unit-converter"
+
+
+const legacyToolPages={
+
+ "/calculator.html":
+ "calculator",
+
+ "/bmi-calculator.html":
+ "bmi-calculator",
+
+ "/unit-converter.html":
+ "unit-converter"
+
 };
 
-app.get(Object.keys(legacyToolPages), (req, res) => {
-  res.redirect(`/tool.html?slug=${legacyToolPages[req.path]}`);
+
+
+app.get(
+ Object.keys(legacyToolPages),
+ (req,res)=>{
+
+ res.redirect(
+ `/tool.html?slug=${legacyToolPages[req.path]}`
+ );
+
 });
 
+
+
 /* =========================
-   ERROR HANDLER (LAST)
+   ERROR HANDLER
 ========================= */
-app.use((err, req, res, next) => {
-  console.error("Server Error:", err);
+
+
+app.use(
+ (err,req,res,next)=>{
+
+
+ console.error(
+  "Server Error:",
+  err.message
+ );
+
+
+
+ if(ErrorLog){
 
   ErrorLog.create({
-    type: "server",
-    message: err.message,
-    stack: err.stack,
-    path: req.originalUrl
-  }).catch(() => {});
 
-  res.status(500).json({
-    success: false,
-    message: "Internal Server Error"
-  });
+   type:"server",
+
+   message:err.message,
+
+   stack:err.stack,
+
+   path:req.originalUrl
+
+
+  })
+  .catch(()=>{});
+
+ }
+
+
+
+ res.status(500)
+ .json({
+
+  success:false,
+
+  message:
+  "Internal Server Error"
+
+ });
+
+
 });
+
+
 
 /* =========================
-   GRACEFUL SHUTDOWN
+   SHUTDOWN
 ========================= */
-process.on("SIGTERM", async () => {
-  console.log("SIGTERM received");
-  await mongoose.connection.close();
-  process.exit(0);
+
+
+process.on(
+ "SIGTERM",
+ async()=>{
+
+
+ console.log(
+  "SIGTERM received"
+ );
+
+
+ if(
+ mongoose.connection.readyState
+ ){
+
+ await mongoose.connection.close();
+
+ }
+
+
+ process.exit(0);
+
+
 });
+
+
 
 /* =========================
    START SERVER
 ========================= */
-const PORT = process.env.PORT || 5000;
 
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+
+const PORT =
+process.env.PORT || 5000;
+
+
+
+if(require.main===module){
+
+
+ app.listen(
+  PORT,
+  ()=>{
+
+   console.log(
+    `Server running on port ${PORT}`
+   );
+
+  }
+ );
+
+
 }
 
-module.exports = app;
+
+
+module.exports=app;
