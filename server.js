@@ -296,6 +296,8 @@ const blogRoute=require("./routes/blog");
 
 const businessRoute=require("./routes/business");
 
+const adsRoute=require("./routes/ads");
+
 
 
 /* =========================
@@ -421,6 +423,12 @@ app.use(
 app.use(
   "/api/business",
   businessRoute
+);
+
+
+app.use(
+  "/api/ads",
+  adsRoute
 );
 
 
