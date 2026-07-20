@@ -1,10 +1,11 @@
 const jwt = require("jsonwebtoken");
 const { logAuthEvent, logSecurityEvent } = require("./audit");
+if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
+  throw new Error("JWT secrets are missing. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET.");
+}
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "change_this_access_secret";
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "change_this_refresh_secret";
-const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || "15m";
-const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "7d";
+const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
+const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
 /**
  * Generate access token
