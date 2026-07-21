@@ -5,6 +5,8 @@ const path = require("path");
 const helmet = require("helmet");
 const compression = require("compression");
 const morgan = require("morgan");
+const rateLimit = require("express-rate-limit");
+const hpp = require("hpp");
 
 require("dotenv").config();
 
@@ -12,7 +14,26 @@ require("dotenv").config();
    CORE APP
 ========================= */
 
+
 const app = express();
+
+// Security Middleware
+app.use(helmet());
+app.use(compression());
+app.use(morgan("combined"));
+app.use(hpp());
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: "Too many requests"
+});
+
+app.use("/api", apiLimiter);
+
 
 app.set("trust proxy", 1);
 
