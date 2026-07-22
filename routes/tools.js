@@ -194,7 +194,7 @@ router.post("/pdf-to-word", upload.single("file"), async (req, res) => {
       return res.status(400).json({ success: false, message: "Please upload a PDF file." });
     }
 
-    const mode = req.body.mode === "fast" ? "fast" : "preserve";
+    const mode = "fast";
     const filename = safeName("pdf-to-word", "docx");
     const outputPath = path.join(convertedDir, filename);
 
