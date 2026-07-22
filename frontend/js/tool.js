@@ -368,11 +368,11 @@ const descriptions = {
 };
 
 function actionButton(label, fn) {
-  return `<button class="primary-btn" onclick="${fn}">${label}</button>`;
+  return `<button class="primary-btn tool-action" data-action="${fn.replace("()", "")}">${label}</button>`;
 }
 
 function copyButton() {
-  return `<button class="secondary-btn" onclick="copyResult()">Copy Result</button>`;
+  return `<button class="secondary-btn tool-action" data-action="copyResult">Copy Result</button>`;
 }
 
 function renderExpressionTool(tool) {
@@ -385,11 +385,76 @@ function renderExpressionTool(tool) {
 
 function calculateExpression() {
   const value = document.getElementById("expr").value.trim();
-  if (!/^[0-9+\-*/().\s%]+$/.test(value)) return result("Please enter a valid math expression.");
+
+  if (!/^[0-9+\-*/().\s%]+$/.test(value)) {
+    return result("Please enter a valid math expression.");
+  }
+
   try {
-    result(`Result: ${Function(`"use strict"; return (${value})`)()}`);
-  } catch {
-    result("Unable to calculate this expression.");
+    const tokens = value.replace(/\s+/g, "").match(/\d+(\.\d+)?|[()+\-*/%]/g);
+
+    if (!tokens || tokens.join("") !== value.replace(/\s+/g, "")) {
+      return result("Invalid expression.");
+    }
+
+    const precedence = {
+      "+": 1,
+      "-": 1,
+      "*": 2,
+      "/": 2,
+      "%": 2
+    };
+
+    const output = [];
+    const operators = [];
+
+    tokens.forEach(token => {
+      if (!isNaN(token)) {
+        output.push(Number(token));
+      } else if (token === "(") {
+        operators.push(token);
+      } else if (token === ")") {
+        while (operators.length && operators[operators.length - 1] !== "(") {
+          output.push(operators.pop());
+        }
+        operators.pop();
+      } else {
+        while (
+          operators.length &&
+          precedence[operators[operators.length - 1]] >= precedence[token]
+        ) {
+          output.push(operators.pop());
+        }
+        operators.push(token);
+      }
+    });
+
+    while (operators.length) {
+      output.push(operators.pop());
+    }
+
+    const stack = [];
+
+    output.forEach(token => {
+      if (typeof token === "number") {
+        stack.push(token);
+      } else {
+        const b = stack.pop();
+        const a = stack.pop();
+
+        if (token === "+") stack.push(a + b);
+        if (token === "-") stack.push(a - b);
+        if (token === "*") stack.push(a * b);
+        if (token === "/") stack.push(a / b);
+        if (token === "%") stack.push(a % b);
+      }
+    });
+
+    result("Result: " + stack[0]);
+
+  } catch (error) {
+    console.error("Calculator error:", error);
+    result("Unable to calculate expression.");
   }
 }
 
@@ -774,7 +839,7 @@ function convertTimeZone() {
   result(`Converted time: ${new Date(utc + offset * 3600000).toLocaleString()}`);
 }
 function renderCountdown(tool) {
-  setBox(tool, `<input id="seconds" class="tool-input" type="text" inputmode="decimal" placeholder="Seconds">${actionButton("Start Countdown", "startCountdown()")}<button class="secondary-btn" onclick="clearInterval(countdownTimer)">Pause</button><p id="result" class="result"></p>`);
+  setBox(tool, `<input id="seconds" class="tool-input" type="text" inputmode="decimal" placeholder="Seconds">${actionButton("Start Countdown", "startCountdown()")}<button class="secondary-btn tool-action" data-action="pauseCountdown">Pause</button><p id="result" class="result"></p>`);
 }
 function startCountdown() {
   clearInterval(countdownTimer);
@@ -788,7 +853,7 @@ function startCountdown() {
   }, 1000);
 }
 function renderStopwatch(tool) {
-  setBox(tool, `${actionButton("Start", "startStopwatch()")}<button class="secondary-btn" onclick="stopStopwatch()">Stop</button><button class="secondary-btn" onclick="resetStopwatch()">Reset</button><p id="result" class="result">00:00.0</p>`);
+  setBox(tool, `${actionButton("Start", "startStopwatch()")}<button class="secondary-btn tool-action" data-action="stopStopwatch">Stop</button><button class="secondary-btn tool-action" data-action="resetStopwatch">Reset</button><p id="result" class="result">00:00.0</p>`);
 }
 function startStopwatch() {
   clearInterval(stopwatchTimer);
@@ -926,7 +991,7 @@ function renderTransform(tool, placeholder, expression, fnName) {
     const input = document.getElementById("text").value;
     try { result(eval(expression)); } catch { result("Unable to transform this input."); }
   };
-  setBox(tool, `<textarea id="text" class="tool-textarea" placeholder="${placeholder}"></textarea><button class="primary-btn" onclick="${fnName}()">Convert</button> ${copyButton()}<p id="result" class="result"></p>`);
+  setBox(tool, `<textarea id="text" class="tool-textarea" placeholder="${placeholder}"></textarea><button class="primary-btn" class="primary-btn tool-action" data-action="${fnName}">Convert</button> ${copyButton()}<p id="result" class="result"></p>`);
 }
 function decodeHTML(input) {
   const div = document.createElement("div");
@@ -980,7 +1045,7 @@ function checkAltText() { const html = document.getElementById("text").value; co
 function renderImageCompressor(tool) { renderImageTool(tool, "Compress Image", "processImage(false)"); }
 function renderImageResizer(tool) { renderImageTool(tool, "Resize Image", "processImage(true)"); }
 function renderImageTool(tool, label, fn) {
-  setBox(tool, `<input id="imageFile" class="tool-input" type="file" accept="image/*"><input id="imageWidth" class="tool-input" type="text" inputmode="decimal" placeholder="Width px for resize"><button class="primary-btn" onclick="${fn}">${label}</button><div id="result" class="result"></div>`);
+  setBox(tool, `<input id="imageFile" class="tool-input" type="file" accept="image/*"><input id="imageWidth" class="tool-input" type="text" inputmode="decimal" placeholder="Width px for resize"><button class="primary-btn tool-action" data-action="${fn.replace("()", "")}">${label}</button><div id="result" class="result"></div>`);
 }
 function processImage(resize) {
   const file = document.getElementById("imageFile").files[0];
@@ -1048,7 +1113,7 @@ function renderDocumentTool(tool) {
     <input id="documentFiles" class="tool-input" type="file" accept="${accepts[tool.slug]}" ${multiple}>
     ${mode}
     ${extra}
-    <button class="primary-btn" onclick="processDocumentTool('${tool.slug}')">${tool.name}</button>
+    <button class="primary-btn tool-action" data-action="processDocumentTool" data-slug="${tool.slug}">${tool.name}</button>
     ${pdfRecommendation}
     <div id="result" class="result"></div>
   `);
@@ -1152,7 +1217,7 @@ function showDownloadResult(url, label, details = "", directUrl = "") {
     <div class="download-panel">
       <strong>Your file is ready.</strong>
       <span>${safeLabel}</span>
-      <button type="button" class="download-btn" onclick="downloadConvertedFile('${encodedUrl}', '${encodedLabel}', 'inlineDownloadStatus')">Download File</button>
+      <button type="button" class="download-btn tool-action" data-action="downloadConvertedFile" data-url="${encodedUrl}" data-label="${encodedLabel}" data-status="inlineDownloadStatus">Download File</button>
       <a class="direct-link" href="${url}" target="_blank">Open database download link</a>
       ${fallbackLink}
       ${safeDetails}
@@ -1173,11 +1238,11 @@ function showDownloadPopup(url, label, details = "", directUrl = "") {
   popup.className = "download-modal";
   popup.innerHTML = `
     <div class="download-modal-box">
-      <button class="modal-close" onclick="closeDownloadPopup()">×</button>
+      <button class="modal-close tool-action" data-action="closeDownloadPopup">×</button>
       <h2>Conversion Complete</h2>
       <p>Your converted file is ready to download.</p>
       <strong class="download-filename">${escapeHTML(label)}</strong>
-      <button type="button" class="download-btn big" onclick="downloadConvertedFile('${encodedUrl}', '${encodedLabel}', 'downloadStatus')">Download Now</button>
+      <button type="button" class="download-btn big tool-action" data-action="downloadConvertedFile" data-url="${encodedUrl}" data-label="${encodedLabel}" data-status="downloadStatus">Download Now</button>
       <p id="downloadStatus" class="download-status">After clicking download, your browser will save the file to your PC Downloads folder unless you chose a different folder.</p>
       ${directUrl ? `<a class="direct-link" href="${directUrl}" target="_blank">Backup direct file link</a>` : ""}
       ${details ? `<small>${details}</small>` : ""}
@@ -1208,6 +1273,7 @@ function markDownloadStarted() {
 async function downloadConvertedFile(encodedUrl, encodedLabel, statusId) {
   const status = document.getElementById(statusId);
   const url = decodeURIComponent(encodedUrl);
+  console.log("Download URL:", url);
   const label = decodeURIComponent(encodedLabel || "converted-file");
 
   if (status) {
@@ -1375,4 +1441,32 @@ function generateAIBusinessIdeas() {
 
 loadTool();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch(() => {});
+
+
+document.addEventListener("click", (event) => {
+    const button = event.target.closest(".tool-action");
+
+    if (!button) return;
+
+    const action = button.dataset.action;
+    const fn = globalThis[action];
+
+    if (typeof fn !== "function") {
+        console.error("Tool function not found:", action);
+        return;
+    }
+
+    if (action === "downloadConvertedFile") {
+        fn(
+            button.dataset.url,
+            button.dataset.label,
+            button.dataset.status
+        );
+    } else if (action === "processDocumentTool") {
+        fn(button.dataset.slug);
+    } else {
+        fn();
+    }
+});
+
 

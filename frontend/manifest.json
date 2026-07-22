@@ -1,9 +1,7 @@
 {
   "name": "Smart Tools Hub",
-  "short_name": "Smart Tools",
-  "start_url": "/index.html",
+  "short_name": "SmartTools",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f7fb",
-  "theme_color": "#1d4ed8",
-  "icons": []
+  "description": "Free online productivity tools"
 }
