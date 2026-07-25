@@ -11,6 +11,7 @@ const { Document, Packer, Paragraph, TextRun } = require("docx");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
 const { PDFParse } = require("pdf-parse");
 const Tool = require("../models/Tool");
+const validateFileSignature = require("../middlewares/fileValidator");
 const ConvertedFile = require("../models/ConvertedFile");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
 const { getFallbackTools, getFallbackToolBySlug } = require("../config/fallbackTools");
@@ -35,6 +36,30 @@ const upload = multer({
     cb(null, true);
   }
 });
+
+function validateFile(req, res, next) {
+  if (!validateFileSignature(req.file)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid file signature. File content does not match extension."
+    });
+  }
+
+  next();
+}
+
+function validateFiles(req, res, next) {
+  for (const file of req.files || []) {
+    if (!validateFileSignature(file)) {
+      return res.status(400).json({
+        success: false,
+        message: "One or more uploaded files are invalid."
+      });
+    }
+  }
+
+  next();
+}
 
 async function validateUploadedFile(file) {
   if (!file || !file.buffer) {
@@ -225,7 +250,7 @@ async function writeTextPdf(text, outputPath, title = "Converted Document") {
   fs.writeFileSync(outputPath, await pdfDoc.save({ useObjectStreams: true }));
 }
 
-router.post("/pdf-to-word", upload.single("file"), async (req, res) => {
+router.post("/pdf-to-word", upload.single("file"), validateFile, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a PDF file." });
@@ -299,7 +324,7 @@ router.post("/pdf-to-word", upload.single("file"), async (req, res) => {
   }
 });
 
-router.post("/word-to-pdf", upload.single("file"), async (req, res) => {
+router.post("/word-to-pdf", upload.single("file"), validateFile, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a Word document." });
@@ -341,7 +366,7 @@ router.post("/word-to-pdf", upload.single("file"), async (req, res) => {
   }
 });
 
-router.post("/merge-pdf", upload.array("files", 20), async (req, res) => {
+router.post("/merge-pdf", upload.array("files", 20), validateFiles, async (req, res) => {
   try {
     if (!req.files || req.files.length < 2) {
       return res.status(400).json({ success: false, message: "Please upload at least two PDF files." });
@@ -371,7 +396,7 @@ router.post("/merge-pdf", upload.array("files", 20), async (req, res) => {
   }
 });
 
-router.post("/split-pdf", upload.single("file"), async (req, res) => {
+router.post("/split-pdf", upload.single("file"), validateFile, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a PDF file." });
@@ -401,7 +426,7 @@ router.post("/split-pdf", upload.single("file"), async (req, res) => {
   }
 });
 
-router.post("/pdf-compressor", upload.single("file"), async (req, res) => {
+router.post("/pdf-compressor", upload.single("file"), validateFile, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a PDF file." });
