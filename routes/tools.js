@@ -5,6 +5,7 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const multer = require("multer");
+const { fileTypeFromBuffer } = require("file-type");
 const mammoth = require("mammoth");
 const { Document, Packer, Paragraph, TextRun } = require("docx");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
@@ -14,10 +15,46 @@ const ConvertedFile = require("../models/ConvertedFile");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
 const { getFallbackTools, getFallbackToolBySlug } = require("../config/fallbackTools");
 
+const allowedMimeTypes = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword"
+];
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }
+  limits: {
+    fileSize: 20 * 1024 * 1024,
+    files: 20
+  },
+  fileFilter: (req, file, cb) => {
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return cb(new Error("Unsupported file type"), false);
+    }
+
+    cb(null, true);
+  }
 });
+
+async function validateUploadedFile(file) {
+  if (!file || !file.buffer) {
+    throw new Error("No file uploaded");
+  }
+
+  const type = await fileTypeFromBuffer(file.buffer);
+
+  if (!type) {
+    throw new Error("Unable to identify file type");
+  }
+
+  const allowedExtensions = ["pdf", "doc", "docx"];
+
+  if (!allowedExtensions.includes(type.ext)) {
+    throw new Error("Invalid file signature");
+  }
+
+  return true;
+}
 
 const convertedDir = path.join(__dirname, "..", "converted");
 if (!fs.existsSync(convertedDir)) {
@@ -98,7 +135,7 @@ function convertWithWord(inputPath, outputPath, outputType) {
       [
         "-NoProfile",
         "-ExecutionPolicy",
-        "Bypass",
+        "RemoteSigned",
         "-File",
         wordConverterScript,
         "-InputPath",
@@ -192,6 +229,7 @@ router.post("/pdf-to-word", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a PDF file." });
+      await validateUploadedFile(req.file);
     }
 
     const mode = "fast";
@@ -265,6 +303,7 @@ router.post("/word-to-pdf", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a Word document." });
+      await validateUploadedFile(req.file);
     }
 
     const inputExt = safeOriginalExt(req.file.originalname, "docx");
