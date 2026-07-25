@@ -7,6 +7,7 @@ const compression = require("compression");
 const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const hpp = require("hpp");
+const cleanupFolder = require("./utils/fileCleanup");
 
 require("dotenv").config();
 
@@ -16,6 +17,17 @@ require("dotenv").config();
 
 
 const app = express();
+
+
+// Automatic temporary file cleanup
+const uploadsPath = path.join(__dirname, "uploads");
+const convertedPath = path.join(__dirname, "converted");
+
+setInterval(() => {
+  cleanupFolder(uploadsPath, 60);
+  cleanupFolder(convertedPath, 60);
+}, 60 * 60 * 1000);
+
 
 // Security Middleware
 app.use(helmet());
