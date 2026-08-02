@@ -59,13 +59,12 @@ function csrfProtection(req, res, next) {
     return next();
   }
 
-  // Skip CSRF check for public endpoints
-  const publicEndpoints = ["/api/auth/register", "/api/auth/login", "/api/tools", "/api/blog"];
+  const publicEndpoints = ["/api/auth/csrf-token", "/health", "/api/health"];
   if (publicEndpoints.some((endpoint) => req.path.startsWith(endpoint))) {
     return next();
   }
 
-  const token = req.headers["x-csrf-token"] || req.body?.csrfToken;
+  const token = req.headers["x-csrf-token"] || req.headers["X-CSRF-Token"] || req.body?.csrfToken;
 
   if (!token) {
     return res.status(403).json({
@@ -81,8 +80,6 @@ function csrfProtection(req, res, next) {
     });
   }
 
-  // Consume the token
-  consumeCsrfToken(token);
   next();
 }
 

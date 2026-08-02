@@ -56,6 +56,20 @@ describe("Smart Tools Platform - Security Tests", () => {
 
       expect(response.get("X-CSRF-Token")).toBeDefined();
     });
+
+    test("Should reject state-changing requests without a CSRF token", async () => {
+      const response = await request(app)
+        .post("/api/auth/register")
+        .send({
+          email: "csrf-check@security.com",
+          password: "SecurePass123!",
+          firstName: "CSRF"
+        })
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toContain("CSRF");
+    });
   });
 
   // ==========================================

@@ -30,13 +30,14 @@ setInterval(() => {
 
 
 // Security Middleware
+app.disable("x-powered-by");
 app.use(helmet());
 app.use(compression());
 app.use(morgan("combined"));
 app.use(hpp());
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: false, limit: "5mb" }));
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -95,10 +96,14 @@ app.use(
           "'self'"
         ],
 
-        frameSrc: [
+            frameSrc: [
           "'self'"
         ]
       }
+    },
+
+    frameguard: {
+      action: "deny"
     },
 
     crossOriginEmbedderPolicy: false,
@@ -244,14 +249,6 @@ app.use(
 
 
 
-app.use(
-  express.json({
-    limit:"5mb"
-  })
-);
-
-
-
 /* =========================
  SECURITY MIDDLEWARE
 ========================= */
@@ -264,7 +261,8 @@ const {
 
 
 const {
-  generateCsrfTokenMiddleware
+  generateCsrfTokenMiddleware,
+  csrfProtection
 }=require("./middlewares/csrf");
 
 
@@ -286,6 +284,7 @@ app.use(
   generateCsrfTokenMiddleware
 );
 
+app.use(csrfProtection);
 
 app.use(
   auditMiddleware
@@ -315,21 +314,41 @@ const User=require("./models/User");
 ========================= */
 
 
-const authRoute=require("./routes/auth");
+function createFallbackRouter(message = "Service temporarily unavailable") {
+  const router = express.Router();
+  router.all("*", (req, res) => {
+    res.status(503).json({
+      success: false,
+      message
+    });
+  });
+  return router;
+}
 
-const toolsRoute=require("./routes/tools");
+function loadRoute(modulePath, fallbackMessage) {
+  try {
+    return require(modulePath);
+  } catch (error) {
+    console.warn(`Route load failed for ${modulePath}: ${error.message}`);
+    return createFallbackRouter(fallbackMessage);
+  }
+}
 
-const contactRoute=require("./routes/contact");
+const authRoute=loadRoute("./routes/auth", "Authentication service temporarily unavailable");
 
-const adminRoute=require("./routes/admin");
+const toolsRoute=loadRoute("./routes/tools", "Tools service temporarily unavailable");
 
-const analyticsRoute=require("./routes/analytics");
+const contactRoute=loadRoute("./routes/contact", "Contact service temporarily unavailable");
 
-const blogRoute=require("./routes/blog");
+const adminRoute=loadRoute("./routes/admin", "Admin service temporarily unavailable");
 
-const businessRoute=require("./routes/business");
+const analyticsRoute=loadRoute("./routes/analytics", "Analytics service temporarily unavailable");
 
-const adsRoute=require("./routes/ads");
+const blogRoute=loadRoute("./routes/blog", "Blog service temporarily unavailable");
+
+const businessRoute=loadRoute("./routes/business", "Business service temporarily unavailable");
+
+const adsRoute=loadRoute("./routes/ads", "Ads service temporarily unavailable");
 
 
 
@@ -339,12 +358,12 @@ const adsRoute=require("./routes/ads");
 
 
 const createLimiter=require("./middlewares/rateLimiter");
-
+const isTestEnvironment = process.env.NODE_ENV === "test";
 
 app.use(
  createLimiter({
    windowMs:60000,
-   max:120
+   max:isTestEnvironment ? 1000 : 120
  })
 );
 
@@ -354,7 +373,7 @@ const authLimiter=createLimiter({
 
  windowMs:15*60*1000,
 
- max:5
+ max:isTestEnvironment ? 200 : 5
 
 });
 

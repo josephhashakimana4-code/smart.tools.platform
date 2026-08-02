@@ -1,5 +1,9 @@
 const xss = require("xss");
 
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /**
  * Sanitize input to prevent XSS attacks
  */
@@ -8,9 +12,12 @@ function sanitizeInput(input) {
     return xss(input, {
       whiteList: {},
       stripIgnoredTag: true
-    });
+    }).trim();
   }
-  if (typeof input === "object" && input !== null) {
+  if (Array.isArray(input)) {
+    return input.map((item) => sanitizeInput(item));
+  }
+  if (isObject(input)) {
     const sanitized = {};
     for (const key in input) {
       sanitized[key] = sanitizeInput(input[key]);
@@ -67,6 +74,9 @@ function sanitizeMiddleware(req, res, next) {
   if (req.query && typeof req.query === "object") {
     req.query = sanitizeInput(req.query);
   }
+  if (req.params && typeof req.params === "object") {
+    req.params = sanitizeInput(req.params);
+  }
   next();
 }
 
@@ -77,8 +87,15 @@ function validateRequiredFields(fields) {
   return (req, res, next) => {
     const missing = [];
     for (const field of fields) {
-      if (!req.body[field]) {
+      const value = req.body?.[field];
+      const isBlank = typeof value !== "string"
+        ? value === undefined || value === null || value === ""
+        : value.trim() === "";
+
+      if (isBlank) {
         missing.push(field);
+      } else if (typeof value === "string") {
+        req.body[field] = value.trim();
       }
     }
     if (missing.length > 0) {
@@ -97,12 +114,16 @@ function validateRequiredFields(fields) {
  */
 function validateEmail(req, res, next) {
   const email = req.body.email;
-  if (!email || !isValidEmail(email)) {
+  const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : email;
+
+  if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
     return res.status(400).json({
       success: false,
       message: "Invalid email format"
     });
   }
+
+  req.body.email = normalizedEmail;
   next();
 }
 
@@ -111,24 +132,28 @@ function validateEmail(req, res, next) {
  */
 function validatePasswordStrength(req, res, next) {
   const password = req.body.password;
-  if (!password) {
+  if (typeof password !== "string" || password.trim() === "") {
     return res.status(400).json({
       success: false,
       message: "Password is required"
     });
   }
-  if (password.length < 8) {
+
+  const trimmedPassword = password.trim();
+  if (trimmedPassword.length < 8) {
     return res.status(400).json({
       success: false,
       message: "Password must be at least 8 characters"
     });
   }
-  if (!isStrongPassword(password)) {
+  if (!isStrongPassword(trimmedPassword)) {
     return res.status(400).json({
       success: false,
       message: "Password must contain uppercase, lowercase, number, and special character (@$!%*?&)"
     });
   }
+
+  req.body.password = trimmedPassword;
   next();
 }
 
