@@ -91,7 +91,10 @@ function cleanTokens() {
     }
   }
 }
-setInterval(cleanTokens, 15 * 60 * 1000); // every 15 min
+const adminCleanupInterval = setInterval(cleanTokens, 15 * 60 * 1000); // every 15 min
+if (adminCleanupInterval.unref) {
+  adminCleanupInterval.unref();
+}
 
 /* =========================
    AUTH MIDDLEWARE (FIXED)

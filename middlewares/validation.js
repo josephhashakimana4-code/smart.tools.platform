@@ -11,7 +11,8 @@ function sanitizeInput(input) {
   if (typeof input === "string") {
     return xss(input, {
       whiteList: {},
-      stripIgnoredTag: true
+      stripIgnoreTag: true,
+      escapeHtml: false
     }).trim();
   }
   if (Array.isArray(input)) {
