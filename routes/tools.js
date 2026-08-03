@@ -37,7 +37,59 @@ const upload = multer({
   }
 });
 
-function validateFile(req, res, next) {
+// --- File upload hardening helpers ---
+const os = require("os");
+const { writeFileSync, unlinkSync } = require("fs");
+const { spawnSync } = require("child_process");
+
+async function scanBufferForVirus(buffer) {
+  // Try to use clamscan CLI if available. This is best-effort: if not present,
+  // warn and allow upload (do NOT block deployment). In production, install
+  // ClamAV and ensure `clamscan` is available or integrate with a managed
+  // scanning service.
+  try {
+    const tmp = path.join(os.tmpdir(), `upload-scan-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    writeFileSync(tmp, buffer);
+    const res = spawnSync("clamscan", ["--no-summary", tmp], { encoding: "utf8", timeout: 20000 });
+    unlinkSync(tmp);
+
+    if (res.error) {
+      console.warn("clamscan not available or failed:", res.error.message);
+      return { ok: true, info: "no-scanner" };
+    }
+
+    // clamscan prints: /tmp/...: OK  or /tmp/...: Eicar-Test-Signature FOUND
+    const out = String(res.stdout || "") + String(res.stderr || "");
+    if (/FOUND/i.test(out)) {
+      return { ok: false, info: out.trim() };
+    }
+
+    return { ok: true, info: out.trim() };
+  } catch (err) {
+    console.warn("Virus scan failed (best-effort):", err.message);
+    return { ok: true, info: "scan-error" };
+  }
+}
+
+// S3 presigned upload URL support (optional)
+let s3Client = null;
+let getPresignedUrl = null;
+if (process.env.S3_BUCKET && process.env.S3_REGION && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+  try {
+    const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+    const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+    s3Client = new S3Client({ region: process.env.S3_REGION });
+    getPresignedUrl = async (key, contentType, expires = 900) => {
+      const cmd = new PutObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key, ContentType: contentType });
+      return getSignedUrl(s3Client, cmd, { expiresIn: expires });
+    };
+  } catch (err) {
+    console.warn("S3 presign not available (missing SDK):", err.message);
+    s3Client = null;
+  }
+}
+
+async function validateFile(req, res, next) {
   if (!validateFileSignature(req.file)) {
     return res.status(400).json({
       success: false,
@@ -45,16 +97,35 @@ function validateFile(req, res, next) {
     });
   }
 
+  // Virus scan (best-effort)
+  try {
+    const result = await scanBufferForVirus(req.file.buffer);
+    if (!result.ok) {
+      return res.status(400).json({ success: false, message: "Uploaded file appears to be infected", info: result.info });
+    }
+  } catch (err) {
+    console.warn("Scan error:", err.message);
+  }
+
   next();
 }
 
-function validateFiles(req, res, next) {
+async function validateFiles(req, res, next) {
   for (const file of req.files || []) {
     if (!validateFileSignature(file)) {
       return res.status(400).json({
         success: false,
         message: "One or more uploaded files are invalid."
       });
+    }
+
+    try {
+      const result = await scanBufferForVirus(file.buffer);
+      if (!result.ok) {
+        return res.status(400).json({ success: false, message: "One or more uploaded files appear infected", info: result.info });
+      }
+    } catch (err) {
+      console.warn("Scan error:", err.message);
     }
   }
 
@@ -110,6 +181,65 @@ const slugAliases = {
   wordcounter: "word-counter",
   charactercounter: "character-counter"
 };
+
+// --- Presigned upload URL endpoint ---
+router.get("/upload-url", async (req, res) => {
+  if (!getPresignedUrl) {
+    return res.status(501).json({ success: false, message: "Presigned uploads not configured on this server" });
+  }
+
+  const filename = String(req.query.filename || "upload").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const contentType = String(req.query.contentType || "application/octet-stream");
+
+  const ext = path.extname(filename).replace(".", "") || "bin";
+  const key = `uploads/${safeName("client-upload", ext)}`;
+
+  try {
+    const url = await getPresignedUrl(key, contentType);
+    res.json({ success: true, uploadUrl: url, key });
+  } catch (err) {
+    console.error("Presign error:", err);
+    res.status(500).json({ success: false, message: "Failed to generate upload URL" });
+  }
+});
+
+// Optional: after client uploads directly to S3, call this endpoint to register/scan
+router.post("/upload-complete", async (req, res) => {
+  const { key } = req.body || {};
+  if (!key) return res.status(400).json({ success: false, message: "Missing key" });
+
+  if (!s3Client) {
+    return res.status(501).json({ success: false, message: "S3 not configured" });
+  }
+
+  try {
+    // Download object and optionally scan - using getObject would require SDK; attempt if available
+    const { GetObjectCommand } = require("@aws-sdk/client-s3");
+    const streamToBuffer = async (stream) => {
+      return new Promise((resolve, reject) => {
+        const chunks = [];
+        stream.on('data', (c) => chunks.push(c));
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+        stream.on('error', reject);
+      });
+    };
+
+    const getRes = await s3Client.send(new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }));
+    const body = await streamToBuffer(getRes.Body);
+    const scan = await scanBufferForVirus(body);
+    if (!scan.ok) {
+      return res.status(400).json({ success: false, message: "Uploaded file failed virus scan", info: scan.info });
+    }
+
+    // Save a simple ConvertedFile record pointing to S3 key (path field holds key)
+    const file = await ConvertedFile.create({ originalName: path.basename(key), filename: path.basename(key), path: key, mimeType: getRes.ContentType || "application/octet-stream", size: body.length });
+
+    res.json({ success: true, id: file._id, key });
+  } catch (err) {
+    console.error("upload-complete error:", err);
+    res.status(500).json({ success: false, message: "Failed to process uploaded file" });
+  }
+});
 
 function normalizeSlug(value) {
   const raw = String(value || "")
