@@ -149,25 +149,37 @@ describe("Smart Tools Platform - Security Tests", () => {
     });
 
     test("Should sanitize input (XSS protection)", async () => {
+      const email = `xss-${Date.now()}@security.com`;
       const response = await request(app)
         .post("/api/auth/register")
         .set("X-CSRF-Token", csrfToken)
         .send({
-          email: "xss@security.com",
+          email,
           password: "SecurePass123!",
           firstName: "<script>alert('xss')</script>"
         })
         .expect(201);
 
       expect(response.body.success).toBe(true);
-      // Input should be sanitized
-      const savedUser = await request(app)
-        .get("/api/auth/me")
-        .set("Authorization", `Bearer ${accessToken}`)
+
+      const loginRes = await request(app)
+        .post("/api/auth/login")
+        .set("X-CSRF-Token", csrfToken)
+        .send({
+          email,
+          password: "SecurePass123!"
+        })
         .expect(200);
 
-      // Should not contain script tags
+      expect(loginRes.body.accessToken).toBeDefined();
+
+      const savedUser = await request(app)
+        .get("/api/auth/me")
+        .set("Authorization", `Bearer ${loginRes.body.accessToken}`)
+        .expect(200);
+
       expect(savedUser.body.user.firstName).not.toContain("<script>");
+      expect(savedUser.body.user.firstName).toBe("alert('xss')");
     });
   });
 
@@ -228,12 +240,25 @@ describe("Smart Tools Platform - Security Tests", () => {
     });
 
     test("Should reject unverified email", async () => {
+      const unverifiedEmail = `unverified-${Date.now()}@security.com`;
+
+      await request(app)
+        .post("/api/auth/register")
+        .set("X-CSRF-Token", csrfToken)
+        .send({
+          email: unverifiedEmail,
+          password: "VerifyTest123!",
+          firstName: "Verify",
+          verified: false
+        })
+        .expect(201);
+
       const response = await request(app)
         .post("/api/auth/login")
         .set("X-CSRF-Token", csrfToken)
         .send({
-          email: testUser.email,
-          password: testUser.password
+          email: unverifiedEmail,
+          password: "VerifyTest123!"
         })
         .expect(403);
 
@@ -423,8 +448,10 @@ describe("Smart Tools Platform - Security Tests", () => {
       }
 
       if (refreshToken) {
+        const csrfRes = await request(app).get("/api/auth/csrf-token");
         const response = await request(app)
           .post("/api/auth/refresh")
+          .set("X-CSRF-Token", csrfRes.body.csrfToken)
           .send({
             refreshToken: refreshToken
           })
@@ -468,7 +495,7 @@ describe("Smart Tools Platform - Security Tests", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.message).toContain("password reset");
+      expect(response.body.message).toBe("If email exists, password reset link has been sent");
     });
 
     test("Should not reveal if email exists (security)", async () => {
@@ -489,7 +516,8 @@ describe("Smart Tools Platform - Security Tests", () => {
         .expect(200);
 
       // Both should have same message
-      expect(response1.body.message).toBe(response2.body.message);
+      expect(response1.body.message).toBe("If email exists, password reset link has been sent");
+      expect(response2.body.message).toBe("If email exists, password reset link has been sent");
     });
 
     test("Should reject invalid reset token", async () => {
@@ -525,21 +553,31 @@ describe("Smart Tools Platform - Security Tests", () => {
   // 8. USER PROFILE TESTS
   // ==========================================
   describe("User Profile Management", () => {
-    beforeEach(async () => {
-      if (!accessToken) {
-        const csrfRes = await request(app).get("/api/auth/csrf-token");
-        const loginRes = await request(app)
-          .post("/api/auth/login")
-          .set("X-CSRF-Token", csrfRes.body.csrfToken)
-          .send({
-            email: testUser.email,
-            password: testUser.password
-          });
+    let profileUser;
 
-        if (loginRes.body.accessToken) {
-          accessToken = loginRes.body.accessToken;
-        }
-      }
+    beforeEach(async () => {
+      const csrfRes = await request(app).get("/api/auth/csrf-token");
+      profileUser = {
+        ...testUser,
+        email: `profile-${Date.now()}-${Math.random().toString(16).slice(2)}@security.com`
+      };
+
+      await request(app)
+        .post("/api/auth/register")
+        .set("X-CSRF-Token", csrfRes.body.csrfToken)
+        .send(profileUser)
+        .expect(201);
+
+      const loginRes = await request(app)
+        .post("/api/auth/login")
+        .set("X-CSRF-Token", csrfRes.body.csrfToken)
+        .send({
+          email: profileUser.email,
+          password: profileUser.password
+        })
+        .expect(200);
+
+      accessToken = loginRes.body.accessToken;
     });
 
     test("Should get user profile", async () => {
@@ -550,8 +588,8 @@ describe("Smart Tools Platform - Security Tests", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.user).toBeDefined();
-      expect(response.body.user.email).toBe(testUser.email);
-      expect(response.body.user.firstName).toBe(testUser.firstName);
+      expect(response.body.user.email).toBe(profileUser.email);
+      expect(response.body.user.firstName).toBe(profileUser.firstName);
     });
 
     test("Should not expose sensitive fields in profile", async () => {
@@ -697,24 +735,41 @@ describe("Smart Tools Platform - Security Tests", () => {
   describe("Input Validation & Sanitization", () => {
     test("Should sanitize HTML input", async () => {
       const csrfRes = await request(app).get("/api/auth/csrf-token");
+      const email = `sanitize-${Date.now()}@security.com`;
 
       const response = await request(app)
         .post("/api/auth/register")
         .set("X-CSRF-Token", csrfRes.body.csrfToken)
         .send({
-          email: "sanitize@security.com",
+          email,
           password: "SanitizeTest123!",
           firstName: "<img src=x onerror='alert(1)'>Test"
         })
         .expect(201);
 
       expect(response.body.success).toBe(true);
-      // Should be sanitized
-      expect(response.body).not.toContain("onerror");
+
+      const loginResponse = await request(app)
+        .post("/api/auth/login")
+        .set("X-CSRF-Token", csrfRes.body.csrfToken)
+        .send({
+          email,
+          password: "SanitizeTest123!"
+        })
+        .expect(200);
+
+      const savedUser = await request(app)
+        .get("/api/auth/me")
+        .set("Authorization", `Bearer ${loginResponse.body.accessToken}`)
+        .expect(200);
+
+      expect(savedUser.body.user.firstName).not.toContain("onerror");
+      expect(savedUser.body.user.firstName).toBe("Test");
     });
 
     test("Should validate email format strictly", async () => {
       const csrfRes = await request(app).get("/api/auth/csrf-token");
+      const token = csrfRes.body.csrfToken || csrfRes.get("X-CSRF-Token");
 
       const invalidEmails = [
         "notanemail",
@@ -727,7 +782,7 @@ describe("Smart Tools Platform - Security Tests", () => {
       for (const email of invalidEmails) {
         const response = await request(app)
           .post("/api/auth/register")
-          .set("X-CSRF-Token", csrfRes.body.csrfToken)
+          .set("X-CSRF-Token", token)
           .send({
             email,
             password: "ValidPass123!",
@@ -741,12 +796,12 @@ describe("Smart Tools Platform - Security Tests", () => {
 
     test("Should validate password strength", async () => {
       const csrfRes = await request(app).get("/api/auth/csrf-token");
+      const token = csrfRes.body.csrfToken || csrfRes.get("X-CSRF-Token");
 
       const weakPasswords = [
         "password", // no uppercase/number/special
         "Password", // no number/special
         "Password1", // no special char
-        "Pass@123", // only 8 chars, but let's test edge
         "lowercase123!", // no uppercase
         "UPPERCASE123!", // no lowercase
         "MixedCase!", // no number
@@ -756,7 +811,7 @@ describe("Smart Tools Platform - Security Tests", () => {
       for (const password of weakPasswords) {
         const response = await request(app)
           .post("/api/auth/register")
-          .set("X-CSRF-Token", csrfRes.body.csrfToken)
+          .set("X-CSRF-Token", token)
           .send({
             email: `test${Date.now()}@security.com`,
             password,

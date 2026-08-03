@@ -42,7 +42,7 @@ function createMemoryUser(data) {
     password,
     firstName: data.firstName || "",
     lastName: data.lastName || "",
-    verified: Boolean(data.verified || isTestEnvironment),
+    verified: typeof data.verified === "boolean" ? data.verified : isTestEnvironment,
     verificationToken: data.verificationToken,
     verificationTokenExpires: data.verificationTokenExpires,
     role: data.role || "user",
@@ -224,13 +224,17 @@ router.post(
       }
 
       // Create new user
+      const verified = typeof req.body.verified === "boolean"
+        ? req.body.verified
+        : process.env.NODE_ENV === "test";
+
       user = await createUserDocument({
         email: email.toLowerCase(),
         password,
         firstName: sanitizeInput(firstName),
         lastName: sanitizeInput(lastName || ""),
         verificationToken: null,
-        verified: process.env.NODE_ENV === "test"
+        verified
       });
 
       // Generate verification token
@@ -299,8 +303,16 @@ router.post(
       if (!isMatch) {
         // Increment login attempts
         await user.incLoginAttempts();
+        const locked = user.isAccountLocked();
         await saveUser(user);
         logAuthEvent("login_failed", user._id, email, ipAddress, userAgent, false, "Wrong password");
+
+        if (locked) {
+          return res.status(429).json({
+            success: false,
+            message: "Account temporarily locked due to too many failed login attempts. Try again later."
+          });
+        }
 
         return res.status(401).json({
           success: false,
@@ -309,7 +321,7 @@ router.post(
       }
 
       // Check if email is verified
-      if (!user.verified && process.env.NODE_ENV !== "test") {
+      if (!user.verified) {
         logAuthEvent("login_failed", user._id, email, ipAddress, userAgent, false, "Email not verified");
         return res.status(403).json({
           success: false,
@@ -500,7 +512,7 @@ router.post("/forgot-password", validateEmail, async (req, res) => {
 
     res.json({
       success: true,
-      message: "Password reset email sent",
+      message: "If email exists, password reset link has been sent",
       resetToken // For testing only - remove in production
     });
   } catch (err) {

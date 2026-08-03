@@ -3,6 +3,7 @@
 
 // Set test environment
 process.env.NODE_ENV = "test";
+process.env.MONGO_URI = "";
 process.env.JWT_ACCESS_SECRET = "test_access_secret_key_32_characters_min";
 process.env.JWT_REFRESH_SECRET = "test_refresh_secret_key_32_characters_min";
 process.env.ADMIN_PASSWORD = "test_admin_password_123";

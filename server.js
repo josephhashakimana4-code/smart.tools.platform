@@ -11,6 +11,8 @@ const cleanupFolder = require("./utils/fileCleanup");
 
 require("dotenv").config();
 
+const isTestEnvironment = process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined;
+
 /* =========================
    CORE APP
 ========================= */
@@ -23,10 +25,13 @@ const app = express();
 const uploadsPath = path.join(__dirname, "uploads");
 const convertedPath = path.join(__dirname, "converted");
 
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   cleanupFolder(uploadsPath, 60);
   cleanupFolder(convertedPath, 60);
 }, 60 * 60 * 1000);
+if (cleanupInterval.unref) {
+  cleanupInterval.unref();
+}
 
 
 // Security Middleware
@@ -41,8 +46,13 @@ app.use(express.urlencoded({ extended: false, limit: "5mb" }));
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: "Too many requests"
+    max: isTestEnvironment ? 100000 : 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      message: "Too many requests"
+    }
 });
 
 app.use("/api", apiLimiter);
@@ -357,27 +367,19 @@ const adsRoute=loadRoute("./routes/ads", "Ads service temporarily unavailable");
 ========================= */
 
 
-const createLimiter=require("./middlewares/rateLimiter");
-const isTestEnvironment = process.env.NODE_ENV === "test";
+const createLimiter = require("./middlewares/rateLimiter");
 
 app.use(
- createLimiter({
-   windowMs:60000,
-   max:isTestEnvironment ? 1000 : 120
- })
+  createLimiter({
+    windowMs: 60000,
+    max: isTestEnvironment ? 100000 : 120
+  })
 );
 
-
-
-const authLimiter=createLimiter({
-
- windowMs:15*60*1000,
-
- max:isTestEnvironment ? 200 : 5
-
+const authLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: isTestEnvironment ? 100000 : 5
 });
-
-
 
 /* =========================
  DATABASE CONNECTION

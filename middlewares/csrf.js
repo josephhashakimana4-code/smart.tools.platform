@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const csrfTokens = new Map();
 
 // Clean expired tokens every 30 minutes
-setInterval(() => {
+const csrfCleanupInterval = setInterval(() => {
   const now = Date.now();
   const maxAge = 60 * 60 * 1000; // 1 hour
   for (const [token, data] of csrfTokens.entries()) {
@@ -17,6 +17,9 @@ setInterval(() => {
     }
   }
 }, 30 * 60 * 1000);
+if (csrfCleanupInterval.unref) {
+  csrfCleanupInterval.unref();
+}
 
 /**
  * Generate CSRF token
