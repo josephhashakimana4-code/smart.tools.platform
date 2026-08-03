@@ -55,6 +55,11 @@ async function scanBufferForVirus(buffer) {
 
     if (res.error) {
       console.warn("clamscan not available or failed:", res.error.message);
+      // In production we fail closed when scanner is missing to avoid accepting
+      // potentially dangerous uploads. In non-production we allow uploads.
+      if (process.env.NODE_ENV === "production") {
+        return { ok: false, info: "no-scanner" };
+      }
       return { ok: true, info: "no-scanner" };
     }
 
@@ -66,7 +71,10 @@ async function scanBufferForVirus(buffer) {
 
     return { ok: true, info: out.trim() };
   } catch (err) {
-    console.warn("Virus scan failed (best-effort):", err.message);
+    console.warn("Virus scan failed:", err.message);
+    if (process.env.NODE_ENV === "production") {
+      return { ok: false, info: `scan-error: ${err.message}` };
+    }
     return { ok: true, info: "scan-error" };
   }
 }
