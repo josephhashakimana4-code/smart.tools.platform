@@ -13,6 +13,18 @@ require("dotenv").config();
 
 const isTestEnvironment = process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined;
 
+// Optional Sentry integration: initialize if SENTRY_DSN provided and module available
+if (process.env.SENTRY_DSN) {
+  try {
+    const Sentry = require("@sentry/node");
+    Sentry.init({ dsn: process.env.SENTRY_DSN });
+    // export Sentry instance for optional use in other modules
+    module.exports.__SENTRY = Sentry;
+  } catch (err) {
+    console.warn("Sentry not installed or failed to initialize:", err.message);
+  }
+}
+
 /* =========================
    CORE APP
 ========================= */
@@ -36,7 +48,6 @@ if (cleanupInterval.unref) {
 
 // Security Middleware
 app.disable("x-powered-by");
-app.use(helmet());
 app.use(compression());
 app.use(morgan("combined"));
 app.use(hpp());
@@ -65,21 +76,17 @@ app.set("trust proxy", 1);
    SECURITY HEADERS
 ========================= */
 
+const allowUnsafeInline = process.env.NODE_ENV !== "production";
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
 
-        styleSrc: [
-          "'self'",
-          "'unsafe-inline'"
-        ],
+        styleSrc: allowUnsafeInline ? ["'self'", "'unsafe-inline'"] : ["'self'"],
 
-        scriptSrc: [
-          "'self'",
-          "'unsafe-inline'"
-        ],
+        scriptSrc: allowUnsafeInline ? ["'self'", "'unsafe-inline'"] : ["'self'"],
 
         imgSrc: [
           "'self'",

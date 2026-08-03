@@ -510,11 +510,17 @@ router.post("/forgot-password", validateEmail, async (req, res) => {
     // TODO: Send reset email with resetToken
     // await sendPasswordResetEmail(email, resetToken);
 
-    res.json({
+    const resp = {
       success: true,
-      message: "If email exists, password reset link has been sent",
-      resetToken // For testing only - remove in production
-    });
+      message: "If email exists, password reset link has been sent"
+    };
+
+    // Include raw reset token only in test environment (never in production)
+    if (process.env.NODE_ENV === "test") {
+      resp.resetToken = resetToken;
+    }
+
+    res.json(resp);
   } catch (err) {
     console.error("Forgot password error:", err);
     res.status(500).json({
