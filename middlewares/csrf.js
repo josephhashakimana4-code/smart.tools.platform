@@ -76,10 +76,10 @@ function csrfProtection(req, res, next) {
     });
   }
 
-  if (!verifyCsrfToken(token)) {
+  if (!verifyCsrfToken(token) || !consumeCsrfToken(token)) {
     return res.status(403).json({
       success: false,
-      message: "Invalid CSRF token"
+      message: "Invalid or expired CSRF token"
     });
   }
 

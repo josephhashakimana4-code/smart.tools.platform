@@ -1,4 +1,6 @@
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
+const User = require("../models/User");
 const { logAuthEvent, logSecurityEvent } = require("./audit");
 if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
   throw new Error("JWT secrets are missing. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET.");
@@ -74,9 +76,15 @@ function verifyAccessToken(token) {
  */
 function verifyRefreshToken(token) {
   try {
-    return jwt.verify(token, REFRESH_SECRET, {
+    const decoded = jwt.verify(token, REFRESH_SECRET, {
       issuer: "SmartToolsHub"
     });
+
+    if (decoded.type !== "refresh") {
+      throw new Error("Invalid refresh token type");
+    }
+
+    return decoded;
   } catch (err) {
     throw new Error(`Refresh token verification failed: ${err.message}`);
   }
@@ -85,7 +93,7 @@ function verifyRefreshToken(token) {
 /**
  * Middleware to verify JWT in Authorization header
  */
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
@@ -101,6 +109,24 @@ function authMiddleware(req, res, next) {
     try {
       const decoded = verifyAccessToken(token);
       req.user = decoded;
+
+      // Enforce current session and token version if DB is available
+      if (mongoose.connection.readyState === 1) {
+        const user = await User.findById(decoded.sub);
+        if (!user) {
+          throw new Error("User not found");
+        }
+
+        if (user.tokenVersion !== decoded.tokenVersion) {
+          throw new Error("Token version mismatch");
+        }
+
+        const session = (user.activeSessions || []).find((s) => s.token === token);
+        if (!session || (session.expiresAt && session.expiresAt < Date.now())) {
+          throw new Error("Session not active");
+        }
+      }
+
       next();
     } catch (err) {
       const ipAddress = req.ip || req.connection.remoteAddress;

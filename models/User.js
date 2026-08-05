@@ -77,8 +77,10 @@ const userSchema = new mongoose.Schema({
   activeSessions: [
     {
       token: String,
+      refreshToken: String,
       createdAt: Date,
       expiresAt: Date,
+      refreshExpiresAt: Date,
       userAgent: String,
       ipAddress: String
     }

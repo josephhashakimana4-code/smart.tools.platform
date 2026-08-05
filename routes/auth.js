@@ -340,8 +340,10 @@ router.post(
       // Store active session
       user.activeSessions.push({
         token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+        refreshExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         userAgent,
         ipAddress
       });
@@ -394,8 +396,24 @@ router.post("/refresh", validateRequiredFields(["refreshToken"]), async (req, re
       });
     }
 
-    // Generate new tokens
+    // Verify this refresh token is active for the user session
+    const session = (user.activeSessions || []).find((s) => s.refreshToken === refreshToken);
+    if (!session || (session.refreshExpiresAt && session.refreshExpiresAt < Date.now())) {
+      logSecurityEvent("token_refresh_failed", user._id, { reason: "Refresh token not active or expired" }, "low");
+      return res.status(401).json({
+        success: false,
+        message: "Invalid refresh token"
+      });
+    }
+
+    // Generate new tokens and update session
     const newTokens = generateTokens(user);
+    session.token = newTokens.accessToken;
+    session.refreshToken = newTokens.refreshToken;
+    session.expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    session.refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await saveUser(user);
 
     res.json({
       success: true,
@@ -420,11 +438,11 @@ router.post("/logout", authMiddleware, async (req, res) => {
     const user = await findUserById(req.user.sub);
 
     if (user) {
-      // Remove current session
+      // Remove current session and revoke the refresh token for this session
       const authHeader = req.headers.authorization;
       if (authHeader) {
         const token = authHeader.split(" ")[1];
-        user.activeSessions = user.activeSessions.filter((s) => s.token !== token);
+        user.activeSessions = (user.activeSessions || []).filter((s) => s.token !== token);
         await saveUser(user);
       }
 
@@ -569,6 +587,8 @@ router.post("/reset-password", validateRequiredFields(["resetToken", "newPasswor
     user.passwordResetExpires = undefined;
     user.loginAttempts = 0;
     user.lockUntil = undefined;
+    user.activeSessions = [];
+    user.tokenVersion += 1;
 
     await saveUser(user);
 

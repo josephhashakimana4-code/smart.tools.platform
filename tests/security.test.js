@@ -70,6 +70,34 @@ describe("Smart Tools Platform - Security Tests", () => {
       expect(response.body.success).toBe(false);
       expect(response.body.message).toContain("CSRF");
     });
+
+    test("Should reject reuse of a CSRF token after first successful request", async () => {
+      const response = await request(app).get("/api/auth/csrf-token");
+      const token = response.body.csrfToken;
+
+      await request(app)
+        .post("/api/auth/register")
+        .set("X-CSRF-Token", token)
+        .send({
+          email: `csrf-reuse-${Date.now()}@security.com`,
+          password: "SecurePass123!",
+          firstName: "Reuse"
+        })
+        .expect(201);
+
+      const reuseResponse = await request(app)
+        .post("/api/auth/register")
+        .set("X-CSRF-Token", token)
+        .send({
+          email: `csrf-reuse2-${Date.now()}@security.com`,
+          password: "SecurePass123!",
+          firstName: "Reuse2"
+        })
+        .expect(403);
+
+      expect(reuseResponse.body.success).toBe(false);
+      expect(reuseResponse.body.message).toContain("CSRF");
+    });
   });
 
   // ==========================================
@@ -432,7 +460,6 @@ describe("Smart Tools Platform - Security Tests", () => {
 
     test("Should refresh token with valid refresh token", async () => {
       if (!refreshToken) {
-        // Login first
         const csrfRes = await request(app).get("/api/auth/csrf-token");
         const loginRes = await request(app)
           .post("/api/auth/login")
@@ -460,7 +487,37 @@ describe("Smart Tools Platform - Security Tests", () => {
         expect(response.body.success).toBe(true);
         expect(response.body.accessToken).toBeDefined();
         expect(response.body.refreshToken).toBeDefined();
+
+        // Save the newly rotated refresh token for later tests
+        refreshToken = response.body.refreshToken;
       }
+    });
+
+    test("Should reject reuse of an old refresh token after rotation", async () => {
+      if (!refreshToken) {
+        return;
+      }
+
+      const oldRefreshToken = refreshToken;
+      const csrfRes = await request(app).get("/api/auth/csrf-token");
+      const firstResponse = await request(app)
+        .post("/api/auth/refresh")
+        .set("X-CSRF-Token", csrfRes.body.csrfToken)
+        .send({ refreshToken: oldRefreshToken })
+        .expect(200);
+
+      expect(firstResponse.body.success).toBe(true);
+      expect(firstResponse.body.refreshToken).toBeDefined();
+
+      const csrfRes2 = await request(app).get("/api/auth/csrf-token");
+      const secondResponse = await request(app)
+        .post("/api/auth/refresh")
+        .set("X-CSRF-Token", csrfRes2.body.csrfToken)
+        .send({ refreshToken: oldRefreshToken })
+        .expect(401);
+
+      expect(secondResponse.body.success).toBe(false);
+      expect(secondResponse.body.message).toContain("Invalid refresh token");
     });
   });
 
