@@ -62,7 +62,7 @@ function csrfProtection(req, res, next) {
     return next();
   }
 
-  const publicEndpoints = ["/api/auth/csrf-token", "/health", "/api/health"];
+  const publicEndpoints = ["/api/auth/csrf-token", "/api/business/webhooks/stripe", "/health", "/api/health"];
   if (publicEndpoints.some((endpoint) => req.path.startsWith(endpoint))) {
     return next();
   }

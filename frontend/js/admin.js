@@ -21,6 +21,7 @@ const state = {
   contacts: [],
   plans: [],
   payments: [],
+  revenue: {},
   apiSubscriptions: [],
   trafficChart: null,
   categoryChart: null,
@@ -266,7 +267,7 @@ async function loadDashboard() {
   setText("dashboardStatus", "Refreshing live data...");
 
   try {
-    const [stats, tools, ads, affiliates, businessSettings, blogPosts, subscribers, contacts, plans, payments, apiSubscriptions] = await Promise.all([
+    const [stats, tools, ads, affiliates, businessSettings, blogPosts, subscribers, contacts, plans, payments, apiSubscriptions, revenue] = await Promise.all([
       api.get("/api/admin/stats"),
       api.get("/api/admin/tools"),
       api.get("/api/admin/ads"),
@@ -277,7 +278,8 @@ async function loadDashboard() {
       api.get("/api/admin/contacts"),
       api.get("/api/admin/plans"),
       api.get("/api/admin/payments"),
-      api.get("/api/admin/api-subscriptions")
+      api.get("/api/admin/api-subscriptions"),
+      api.get("/api/admin/revenue-summary")
     ]);
 
     state.stats = stats || {};
@@ -291,9 +293,14 @@ async function loadDashboard() {
     state.plans = Array.isArray(plans) ? plans : [];
     state.payments = Array.isArray(payments) ? payments : [];
     state.apiSubscriptions = Array.isArray(apiSubscriptions) ? apiSubscriptions : [];
+    state.revenue = revenue || {};
     state.categories = [...new Set(state.tools.map((tool) => tool.category).filter(Boolean))].sort();
 
     renderStats();
+    setText("totalRevenue", `USD ${Number(state.revenue.totalRevenue || 0).toFixed(2)}`);
+    setText("monthlyRevenue", `USD ${Number(state.revenue.monthlyRevenue || 0).toFixed(2)}`);
+    setText("paidSubscribers", number(state.revenue.paidSubscribers));
+    setText("paymentExceptions", `${number(state.revenue.failedPayments)} / ${number(state.revenue.refunds)}`);
     renderCategoryFilter();
     renderTools();
     renderAffiliates();
@@ -878,7 +885,8 @@ function renderPayments() {
       <td>${escapeHtml(`${payment.currency || "USD"} ${payment.amount || 0}`)}</td>
       <td><span class="badge ${payment.status === "paid" ? "" : payment.status === "failed" ? "inactive" : ""}">${escapeHtml(payment.status || "pending")}</span></td>
       <td class="actions-cell">
-        <button class="small-btn secondary-btn mark-payment-paid" type="button" data-id="${escapeHtml(payment._id)}">Mark Paid</button>
+        <button class="small-btn secondary-btn cancel-payment" type="button" data-id="${escapeHtml(payment._id)}">Cancel</button>
+        <button class="danger-btn small-btn refund-payment" type="button" data-id="${escapeHtml(payment._id)}">Refund</button>
       </td>
     </tr>
   `).join("");
@@ -988,15 +996,24 @@ async function deletePlan(button) {
   }
 }
 
-async function markPaymentPaid(button) {
+async function cancelPayment(button) {
   const id = button.dataset.id;
   if (!id) return;
   try {
-    await api.put(`/api/admin/payments/${encodeURIComponent(id)}`, { status: "paid" });
+    await api.post(`/api/admin/payments/${encodeURIComponent(id)}/cancel`, {});
     await loadDashboard();
   } catch (err) {
     setMessage(err.message, true);
   }
+}
+
+async function refundPayment(button) {
+  const id = button.dataset.id;
+  if (!id || !window.confirm("Refund this payment through Stripe?")) return;
+  try {
+    await api.post(`/api/admin/payments/${encodeURIComponent(id)}/refund`, {});
+    await loadDashboard();
+  } catch (err) { setMessage(err.message, true); }
 }
 
 async function deleteApiSubscription(button) {
@@ -1140,9 +1157,14 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const markPaymentButton = event.target.closest(".mark-payment-paid");
-  if (markPaymentButton) {
-    markPaymentPaid(markPaymentButton);
+  const cancelPaymentButton = event.target.closest(".cancel-payment");
+  if (cancelPaymentButton) {
+    cancelPayment(cancelPaymentButton);
+    return;
+  }
+  const refundPaymentButton = event.target.closest(".refund-payment");
+  if (refundPaymentButton) {
+    refundPayment(refundPaymentButton);
     return;
   }
 

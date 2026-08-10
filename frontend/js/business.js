@@ -1,9 +1,18 @@
 const BUSINESS_API_BASE = window.location.protocol === "file:" ? "http://localhost:5000" : window.location.origin;
+let businessCsrfToken = "";
+
+function captureCsrfToken(response) {
+  const token = response.headers.get("x-csrf-token");
+  if (token) businessCsrfToken = token;
+  return response;
+}
 
 async function postBusiness(path, body) {
+  const tokenResponse = await fetch(`${BUSINESS_API_BASE}/api/business/plans`);
+  captureCsrfToken(tokenResponse);
   const res = await fetch(`${BUSINESS_API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": businessCsrfToken },
     body: JSON.stringify(body)
   });
   const data = await res.json().catch(() => ({}));
@@ -18,6 +27,7 @@ async function loadPlans() {
   if (!grid && !select && !apiSelect) return;
 
   const res = await fetch(`${BUSINESS_API_BASE}/api/business/plans`);
+  captureCsrfToken(res);
   const data = await res.json();
   const plans = data.plans || [];
 
@@ -59,10 +69,9 @@ async function handleCheckout(event) {
       planSlug: document.getElementById("checkoutPlan").value,
       gateway: document.getElementById("checkoutGateway").value
     });
-    message.textContent = data.checkoutUrl
-      ? "Payment record created. Opening checkout link..."
-      : "Payment request saved. Add your gateway checkout links in Admin > Business Settings.";
-    if (data.checkoutUrl) window.open(data.checkoutUrl, "_blank");
+    message.textContent = "Opening secure checkout...";
+    if (!data.checkoutUrl) throw new Error("Checkout is not configured. Please choose Stripe after the merchant keys are set.");
+    window.location.assign(data.checkoutUrl);
     event.target.reset();
   } catch (err) {
     message.textContent = err.message;
@@ -107,20 +116,57 @@ async function handleApiSubscription(event) {
   event.preventDefault();
   const message = document.getElementById("apiSubscriptionMessage");
   try {
+    const name = document.getElementById("apiName").value;
+    const email = document.getElementById("apiEmail").value;
+    const planSlug = document.getElementById("apiPlan").value;
     const data = await postBusiness("/api/business/api-subscriptions", {
-      name: document.getElementById("apiName").value,
-      email: document.getElementById("apiEmail").value,
-      planSlug: document.getElementById("apiPlan").value
+      name,
+      email,
+      planSlug
     });
+    if (data.checkoutUrl) {
+      window.location.assign(data.checkoutUrl);
+      return;
+    }
     message.textContent = `API key created: ${data.subscription.apiKey}`;
     event.target.reset();
   } catch (err) {
+    if (err.message === "A paid API plan requires checkout.") {
+      try {
+        const checkout = await postBusiness("/api/business/checkout-interest", { name, email, planSlug, gateway: "stripe" });
+        window.location.assign(checkout.checkoutUrl);
+        return;
+      } catch (checkoutError) {
+        message.textContent = checkoutError.message;
+        return;
+      }
+    }
     message.textContent = err.message;
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   loadPlans().catch(() => {});
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("checkout") === "success" && params.get("session_id")) {
+    const message = document.getElementById("checkoutMessage");
+    const sessionId = params.get("session_id");
+    const checkStatus = async () => {
+      const response = await fetch(`${BUSINESS_API_BASE}/api/business/checkout-result?session_id=${encodeURIComponent(sessionId)}`);
+      const data = await response.json().catch(() => ({}));
+      if (data.status === "paid") {
+        if (message) message.textContent = data.apiKey
+          ? `Payment confirmed. Your API key: ${data.apiKey}`
+          : "Payment confirmed. Your plan is active.";
+        return;
+      }
+      if (message) message.textContent = "Payment received. Confirming your plan…";
+      window.setTimeout(checkStatus, 2500);
+    };
+    checkStatus().catch(() => {
+      if (message) message.textContent = "We could not confirm this checkout yet. Please refresh in a moment.";
+    });
+  }
   document.getElementById("checkoutForm")?.addEventListener("submit", handleCheckout);
   document.getElementById("referralForm")?.addEventListener("submit", handleReferral);
   document.getElementById("advertiseForm")?.addEventListener("submit", handleAdvertise);

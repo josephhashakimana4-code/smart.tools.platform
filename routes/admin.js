@@ -13,6 +13,7 @@ const Contact = require("../models/contact");
 const ErrorLog = require("../models/ErrorLog");
 const Plan = require("../models/Plan");
 const Payment = require("../models/Payment");
+const Subscription = require("../models/Subscription");
 const ApiSubscription = require("../models/ApiSubscription");
 const Referral = require("../models/Referral");
 const DirectAdLead = require("../models/DirectAdLead");
@@ -678,6 +679,69 @@ router.delete("/api-subscriptions/:id", async (req, res) => {
 
   await ApiSubscription.findByIdAndDelete(req.params.id);
   res.json({ success: true });
+});
+
+/* =========================
+   REVENUE & SUBSCRIPTION OPERATIONS
+========================= */
+function monthStart() {
+  const date = new Date();
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+async function stripeRequest(path, body) {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe is not configured.");
+  const response = await fetch(`https://api.stripe.com/v1/${path}`, {
+    method: body ? "POST" : "GET",
+    headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`, ...(body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) },
+    body: body ? new URLSearchParams(body) : undefined
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Stripe operation failed.");
+  return data;
+}
+
+router.get("/revenue-summary", async (req, res) => {
+  if (!isDbReady()) return res.json({ totalRevenue: 0, monthlyRevenue: 0, paidSubscribers: 0, transactions: 0, failedPayments: 0, refunds: 0, affiliateCommissions: 0, advertisingRevenue: 0, monthly: [] });
+  const start = monthStart();
+  const [total, monthly, paidSubscribers, transactions, failedPayments, refunds, monthlyRows] = await Promise.all([
+    Payment.aggregate([{ $match: { status: "paid" } }, { $group: { _id: null, value: { $sum: "$amount" } } }]),
+    Payment.aggregate([{ $match: { status: "paid", createdAt: { $gte: start } } }, { $group: { _id: null, value: { $sum: "$amount" } } }]),
+    Subscription.countDocuments({ status: "active" }),
+    Payment.countDocuments(),
+    Payment.countDocuments({ status: "failed" }),
+    Payment.countDocuments({ status: "refunded" }),
+    Payment.aggregate([{ $match: { status: "paid" } }, { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } }, revenue: { $sum: "$amount" }, transactions: { $sum: 1 } } }, { $sort: { _id: 1 } }, { $limit: 12 }])
+  ]);
+  res.json({ totalRevenue: total[0]?.value || 0, monthlyRevenue: monthly[0]?.value || 0, paidSubscribers, transactions, failedPayments, refunds, affiliateCommissions: 0, advertisingRevenue: 0, monthly: monthlyRows });
+});
+
+router.get("/payments/export", async (req, res) => {
+  const payments = isDbReady() ? await Payment.find().sort({ createdAt: -1 }).lean() : memoryState.payments;
+  const quote = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const lines = [["createdAt", "customerEmail", "planSlug", "amount", "currency", "status", "reference"], ...payments.map((payment) => [payment.createdAt, payment.customerEmail, payment.planSlug, payment.amount, payment.currency, payment.status, payment.reference])];
+  res.type("text/csv").attachment("transactions.csv").send(lines.map((line) => line.map(quote).join(",")).join("\n"));
+});
+
+router.post("/payments/:id/cancel", async (req, res) => {
+  const payment = await Payment.findById(req.params.id);
+  if (!payment) return res.status(404).json({ message: "Payment not found." });
+  if (payment.providerSubscriptionId) await stripeRequest(`subscriptions/${payment.providerSubscriptionId}`, { cancel_at_period_end: "true" });
+  payment.cancelAtPeriodEnd = true;
+  await payment.save();
+  await Subscription.updateMany({ providerSubscriptionId: payment.providerSubscriptionId }, { $set: { cancelAtPeriodEnd: true } });
+  res.json(payment);
+});
+
+router.post("/payments/:id/refund", async (req, res) => {
+  const payment = await Payment.findById(req.params.id);
+  if (!payment) return res.status(404).json({ message: "Payment not found." });
+  if (!payment.providerPaymentIntentId) return res.status(409).json({ message: "No refundable Stripe payment intent is available yet." });
+  await stripeRequest("refunds", { payment_intent: payment.providerPaymentIntentId });
+  payment.status = "refunded";
+  payment.refundedAt = new Date();
+  await payment.save();
+  res.json(payment);
 });
 
 module.exports = router;

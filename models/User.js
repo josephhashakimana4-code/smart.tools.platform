@@ -47,11 +47,14 @@ const userSchema = new mongoose.Schema({
   // Plan & Subscription
   plan: {
     type: String,
-    enum: ["free", "pro", "business"],
+    enum: ["free", "pro", "api-business", "white-label", "business"],
     default: "free"
   },
   planStartDate: Date,
   planEndDate: Date,
+  subscriptionStatus: { type: String, enum: ["active", "past_due", "cancelled", "expired"], default: "active" },
+  stripeCustomerId: { type: String, index: true, sparse: true },
+  stripeSubscriptionId: { type: String, index: true, sparse: true },
 
   // Security
   lastLogin: Date,

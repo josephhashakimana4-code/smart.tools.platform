@@ -22,6 +22,37 @@ function makeApiKey() {
   return `sth_${crypto.randomBytes(18).toString("hex")}`;
 }
 
+function isStripeConfigured() {
+  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.APP_BASE_URL);
+}
+
+async function createStripeCheckout({ payment, plan, email }) {
+  const form = new URLSearchParams({
+    mode: "subscription",
+    customer_email: email,
+    success_url: `${process.env.APP_BASE_URL}/pricing.html?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.APP_BASE_URL}/pricing.html?checkout=cancelled`,
+    "line_items[0][price_data][currency]": String(plan.currency || "USD").toLowerCase(),
+    "line_items[0][price_data][product_data][name]": `${plan.name} — Smart Tools Hub`,
+    "line_items[0][price_data][unit_amount]": String(Math.round(Number(plan.price) * 100)),
+    "line_items[0][price_data][recurring][interval]": "month",
+    "line_items[0][quantity]": "1",
+    "metadata[paymentId]": String(payment._id),
+    "metadata[planSlug]": plan.slug
+  });
+  const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: form
+  });
+  const session = await response.json();
+  if (!response.ok) throw new Error(session.error?.message || "Stripe checkout could not be created.");
+  return session;
+}
+
 function isDbReady() {
   return mongoose.connection.readyState === 1;
 }
@@ -175,46 +206,36 @@ router.get("/settings", async (req, res) => {
 
 router.post("/checkout-interest", async (req, res) => {
   try {
-    if (!isDbReady()) {
-      return res.status(201).json({
-        success: true,
-        payment: {
-          planSlug: slugify(req.body.planSlug || "free"),
-          gateway: ["paypal", "stripe", "flutterwave", "paystack"].includes(req.body.gateway) ? req.body.gateway : "manual",
-          amount: Number(req.body.amount || 0),
-          currency: "USD",
-          status: "pending"
-        },
-        checkoutUrl: ""
-      });
-    }
+    if (!isDbReady()) return res.status(503).json({ message: "Checkout is unavailable until the database is connected." });
 
     const plan = await Plan.findOne({ slug: slugify(req.body.planSlug), active: true });
     if (!plan) return res.status(404).json({ message: "Plan not found." });
+    if (plan.price <= 0) return res.status(400).json({ message: "The Free plan does not require checkout." });
+    if (req.body.gateway !== "stripe") return res.status(400).json({ message: "Stripe is the supported production checkout gateway." });
+    if (!isStripeConfigured()) return res.status(503).json({ message: "Stripe checkout is not configured." });
+
+    const email = String(req.body.email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ message: "Enter a valid email address." });
 
     const payment = await Payment.create({
       customerName: String(req.body.name || "").trim(),
-      customerEmail: String(req.body.email || "").trim().toLowerCase(),
+      customerEmail: email,
       planSlug: plan.slug,
-      gateway: ["paypal", "stripe", "flutterwave", "paystack"].includes(req.body.gateway) ? req.body.gateway : "manual",
+      gateway: "stripe",
       amount: plan.price,
       currency: plan.currency,
       status: "pending",
-      reference: `manual-${Date.now()}`
+      reference: `pending-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`
     });
-
-    const settings = await getSettings();
-    const links = {
-      paypal: settings.paypalUrl,
-      stripe: settings.stripeUrl,
-      flutterwave: settings.flutterwaveUrl,
-      paystack: settings.paystackUrl
-    };
+    const session = await createStripeCheckout({ payment, plan, email });
+    payment.providerSessionId = session.id;
+    payment.reference = session.id;
+    await payment.save();
 
     res.status(201).json({
       success: true,
       payment,
-      checkoutUrl: links[payment.gateway] || ""
+      checkoutUrl: session.url
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to start checkout." });
@@ -244,7 +265,14 @@ router.post("/api-subscriptions", async (req, res) => {
     }
 
     const planSlug = slugify(req.body.planSlug || "free");
-    const plan = await Plan.findOne({ slug: planSlug }) || { apiLimit: 100 };
+    const plan = await Plan.findOne({ slug: planSlug, active: true }) || { slug: "free", price: 0, apiLimit: 100 };
+    if (Number(plan.price) > 0) {
+      return res.status(409).json({
+        message: "A paid API plan requires checkout.",
+        requiresCheckout: true,
+        planSlug: plan.slug
+      });
+    }
     const subscription = await ApiSubscription.create({
       ownerName: String(req.body.name || "").trim(),
       ownerEmail: email,
@@ -257,6 +285,20 @@ router.post("/api-subscriptions", async (req, res) => {
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ message: "An API key already exists for this generated key. Try again." });
     res.status(500).json({ message: "Failed to create API subscription." });
+  }
+});
+
+router.get("/checkout-result", async (req, res) => {
+  try {
+    const reference = String(req.query.session_id || "");
+    const payment = await Payment.findOne({ providerSessionId: reference });
+    if (!payment) return res.status(404).json({ message: "Checkout session not found." });
+    const subscription = payment.status === "paid"
+      ? await ApiSubscription.findOne({ paymentReference: reference })
+      : null;
+    res.json({ status: payment.status, planSlug: payment.planSlug, apiKey: subscription?.apiKey || null });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load checkout status." });
   }
 });
 
