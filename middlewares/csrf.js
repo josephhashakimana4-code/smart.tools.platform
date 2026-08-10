@@ -76,12 +76,21 @@ function csrfProtection(req, res, next) {
     });
   }
 
-  if (!verifyCsrfToken(token) || !consumeCsrfToken(token)) {
+  if (!verifyCsrfToken(token)) {
     return res.status(403).json({
       success: false,
       message: "Invalid or expired CSRF token"
     });
   }
+
+  // Do not consume the token before the request is processed.
+  // Validation/authentication failures should not invalidate the CSRF token.
+  // Consume it only after a successful state-changing request.
+  res.once("finish", () => {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      consumeCsrfToken(token);
+    }
+  });
 
   next();
 }

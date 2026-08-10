@@ -71,7 +71,7 @@ const TOKEN_LIFETIME = 8 * 60 * 60 * 1000;
    ADMIN PASSWORD
 ========================= */
 function adminPassword() {
-  return process.env.ADMIN_PASSWORD || "admin123";
+  return process.env.ADMIN_PASSWORD || null;
 }
 
 /* =========================
@@ -139,7 +139,7 @@ function slugify(value) {
 router.post("/login", (req, res) => {
   const password = String(req.body.password || "");
 
-  if (password !== adminPassword()) {
+  if (!adminPassword() || password !== adminPassword()) {
     return res.status(401).json({ message: "Incorrect password." });
   }
 

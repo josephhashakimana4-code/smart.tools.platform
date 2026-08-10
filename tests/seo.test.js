@@ -1,9 +1,18 @@
 const request = require("supertest");
 
-jest.mock("mongoose", () => ({
-  connect: jest.fn().mockResolvedValue(true),
-  connection: { readyState: 1, close: jest.fn().mockResolvedValue(true) }
-}));
+jest.mock("mongoose", () => {
+  const actual = jest.requireActual("mongoose");
+
+  return {
+    ...actual,
+    connect: jest.fn().mockResolvedValue(actual),
+    connection: {
+      ...actual.connection,
+      readyState: 1,
+      close: jest.fn().mockResolvedValue(true)
+    }
+  };
+});
 
 const app = require("../server");
 
