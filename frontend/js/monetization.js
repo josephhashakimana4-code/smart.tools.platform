@@ -60,7 +60,6 @@ function smartFallbackAd(position = "default") {
   const fallback = {
     top: ["Promote your business here", "Reach tool users with a high-visibility banner.", "Advertise"],
     sidebar: ["Sponsored resource", "Place a relevant offer beside calculators, PDF tools, SEO tools, and generators.", "Book slot"],
-    middle: ["Upgrade your workflow", "Go Pro for higher limits, ad-free tools, and API access.", "See plans"],
     footer: ["Partner with Smart Tools Hub", "Sponsor guides, tools, and business placements.", "Get rates"],
     "in-tool": ["Recommended upgrade", "Unlock faster processing, higher usage, and premium resources.", "Upgrade"]
   }[position] || ["Sponsored placement", "This page is ready for direct ads or ad network code.", "Advertise"];
@@ -69,7 +68,7 @@ function smartFallbackAd(position = "default") {
     title: fallback[0],
     text: fallback[1],
     cta: fallback[2],
-    href: position === "middle" || position === "in-tool" ? "pricing.html" : "advertise.html"
+    href: position === "in-tool" ? "pricing.html" : "advertise.html"
   };
 }
 
@@ -120,10 +119,10 @@ function smartInsertUniversalAds() {
     header.insertAdjacentElement("afterend", top);
   }
 
-  if (!isHomePage && main && !document.querySelector("[data-smart-auto='middle-ad']")) {
-    const middle = smartCreateAdSlot("middle", "Featured sponsored placement");
-    middle.dataset.smartAuto = "middle-ad";
-    main.insertAdjacentElement("afterend", middle);
+  if (!isHomePage && main && !document.querySelector("[data-smart-auto='in-tool-ad']")) {
+    const inTool = smartCreateAdSlot("in-tool", "Featured sponsored placement");
+    inTool.dataset.smartAuto = "in-tool-ad";
+    main.insertAdjacentElement("afterend", inTool);
   }
 
   if (!isHomePage && footer && !document.querySelector("[data-smart-auto='footer-ad']")) {
@@ -135,7 +134,7 @@ function smartInsertUniversalAds() {
   document.querySelectorAll(".ad").forEach((slot, index) => {
     if (!slot.dataset.smartSlot) slot.dataset.smartSlot = `existing-${index}`;
     if (!slot.dataset.adPosition) {
-      slot.dataset.adPosition = index === 0 ? "top" : index === 1 ? "sidebar" : "middle";
+      slot.dataset.adPosition = index === 0 ? "top" : index === 1 ? "sidebar" : "in-tool";
     }
   });
 
