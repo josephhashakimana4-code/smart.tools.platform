@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const User = require("../models/User");
@@ -35,25 +36,37 @@ function generateAccessToken(user) {
  * Generate refresh token
  */
 function generateRefreshToken(user) {
+  const jti = crypto.randomUUID();
+
   const payload = {
     sub: String(user._id),
     type: "refresh",
-    tokenVersion: user.tokenVersion
+    tokenVersion: user.tokenVersion,
+    jti
   };
 
-  return jwt.sign(payload, REFRESH_SECRET, {
+  const token = jwt.sign(payload, REFRESH_SECRET, {
     expiresIn: REFRESH_EXPIRES,
-    issuer: "SmartToolsHub"
+    issuer: "SmartToolsHub",
+    audience: "SmartToolsHubRefresh"
   });
+
+  return {
+    token,
+    jti
+  };
 }
 
 /**
  * Generate both tokens
  */
 function generateTokens(user) {
+  const refresh = generateRefreshToken(user);
+
   return {
     accessToken: generateAccessToken(user),
-    refreshToken: generateRefreshToken(user)
+    refreshToken: refresh.token,
+    refreshTokenJti: refresh.jti
   };
 }
 

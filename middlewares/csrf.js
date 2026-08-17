@@ -39,6 +39,15 @@ function verifyCsrfToken(token) {
   if (!token || !csrfTokens.has(token)) {
     return false;
   }
+
+  const tokenData = csrfTokens.get(token);
+  const maxAge = 60 * 60 * 1000;
+
+  if (!tokenData || Date.now() - tokenData.createdAt > maxAge) {
+    csrfTokens.delete(token);
+    return false;
+  }
+
   return true;
 }
 
@@ -100,11 +109,6 @@ function csrfProtection(req, res, next) {
  * Attach token to response locals
  */
 function generateCsrfTokenMiddleware(req, res, next) {
-  if (req.method === "GET") {
-    const token = generateCsrfToken();
-    res.locals.csrfToken = token;
-    res.set("X-CSRF-Token", token);
-  }
   next();
 }
 

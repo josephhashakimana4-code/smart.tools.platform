@@ -187,6 +187,9 @@ async function createUserDocument(data) {
 router.get("/csrf-token", (req, res) => {
   try {
     const token = generateCsrfToken();
+
+    res.set("X-CSRF-Token", token);
+
     res.json({
       success: true,
       csrfToken: token
@@ -410,6 +413,7 @@ router.post("/refresh", validateRequiredFields(["refreshToken"]), async (req, re
     const newTokens = generateTokens(user);
     session.token = newTokens.accessToken;
     session.refreshToken = newTokens.refreshToken;
+    session.refreshTokenJti = newTokens.refreshTokenJti;
     session.expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     session.refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -636,11 +640,8 @@ router.post("/change-password", authMiddleware, validatePasswordStrength, async 
       });
     }
 
-    // Update password
+    // Update password and invalidate all existing sessions
     user.password = newPassword;
-    await saveUser(user);
-
-    // Invalidate all sessions
     user.tokenVersion += 1;
     user.activeSessions = [];
     await saveUser(user);

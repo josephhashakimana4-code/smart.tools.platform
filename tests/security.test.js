@@ -17,6 +17,21 @@ describe("Smart Tools Platform - Security Tests", () => {
   let accessToken;
   let refreshToken;
   let csrfToken;
+
+  // Get a fresh one-time CSRF token for each state-changing request
+  const getCsrfToken = async () => {
+    const response = await request(app)
+      .get("/api/auth/csrf-token")
+      .expect(200);
+
+    const token = response.body.csrfToken || response.get("X-CSRF-Token");
+
+    if (!token) {
+      throw new Error("CSRF token was not returned by /api/auth/csrf-token");
+    }
+
+    return token;
+  };
   let resetToken;
 
   beforeAll(async () => {
@@ -190,9 +205,11 @@ describe("Smart Tools Platform - Security Tests", () => {
 
       expect(response.body.success).toBe(true);
 
+      const loginCsrfToken = await getCsrfToken();
+
       const loginRes = await request(app)
         .post("/api/auth/login")
-        .set("X-CSRF-Token", csrfToken)
+        .set("X-CSRF-Token", loginCsrfToken)
         .send({
           email,
           password: "SecurePass123!"
@@ -281,9 +298,11 @@ describe("Smart Tools Platform - Security Tests", () => {
         })
         .expect(201);
 
+      const loginCsrfToken = await getCsrfToken();
+
       const response = await request(app)
         .post("/api/auth/login")
-        .set("X-CSRF-Token", csrfToken)
+        .set("X-CSRF-Token", loginCsrfToken)
         .send({
           email: unverifiedEmail,
           password: "VerifyTest123!"
@@ -386,9 +405,11 @@ describe("Smart Tools Platform - Security Tests", () => {
     });
 
     test("Should reject invalid verification token", async () => {
+      const verificationCsrfToken = await getCsrfToken();
+
       const response = await request(app)
         .post("/api/auth/verify-email")
-        .set("X-CSRF-Token", csrfToken)
+        .set("X-CSRF-Token", verificationCsrfToken)
         .send({
           verificationToken: "invalid_token"
         })
@@ -543,9 +564,11 @@ describe("Smart Tools Platform - Security Tests", () => {
     });
 
     test("Should request password reset for existing email", async () => {
+      const resetCsrfToken = await getCsrfToken();
+
       const response = await request(app)
         .post("/api/auth/forgot-password")
-        .set("X-CSRF-Token", csrfToken)
+        .set("X-CSRF-Token", resetCsrfToken)
         .send({
           email: resetTestEmail
         })
@@ -556,17 +579,21 @@ describe("Smart Tools Platform - Security Tests", () => {
     });
 
     test("Should not reveal if email exists (security)", async () => {
+      const resetCsrfToken1 = await getCsrfToken();
+
       const response1 = await request(app)
         .post("/api/auth/forgot-password")
-        .set("X-CSRF-Token", csrfToken)
+        .set("X-CSRF-Token", resetCsrfToken1)
         .send({
           email: resetTestEmail
         })
         .expect(200);
 
+      const resetCsrfToken2 = await getCsrfToken();
+
       const response2 = await request(app)
         .post("/api/auth/forgot-password")
-        .set("X-CSRF-Token", csrfToken)
+        .set("X-CSRF-Token", resetCsrfToken2)
         .send({
           email: "nonexistent@security.com"
         })
@@ -625,9 +652,11 @@ describe("Smart Tools Platform - Security Tests", () => {
         .send(profileUser)
         .expect(201);
 
+      const loginCsrfToken = await getCsrfToken();
+
       const loginRes = await request(app)
         .post("/api/auth/login")
-        .set("X-CSRF-Token", csrfRes.body.csrfToken)
+        .set("X-CSRF-Token", loginCsrfToken)
         .send({
           email: profileUser.email,
           password: profileUser.password
@@ -806,9 +835,12 @@ describe("Smart Tools Platform - Security Tests", () => {
 
       expect(response.body.success).toBe(true);
 
+      const loginCsrfRes = await request(app)
+        .get("/api/auth/csrf-token");
+
       const loginResponse = await request(app)
         .post("/api/auth/login")
-        .set("X-CSRF-Token", csrfRes.body.csrfToken)
+        .set("X-CSRF-Token", loginCsrfRes.body.csrfToken)
         .send({
           email,
           password: "SanitizeTest123!"
