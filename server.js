@@ -1,3 +1,4 @@
+const fs = require('fs');
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -614,46 +615,54 @@ app.get(
 
 const frontendPath =
 path.join(
- __dirname,
- "frontend"
+  __dirname,
+  "frontend"
 );
 
+function getSiteUrl(req) {
+  return (
+    process.env.APP_BASE_URL ||
+    `${req.protocol}://${req.get("host")}`
+  ).replace(/\/+$/, "");
+}
 
+function sendFrontendHtml(req, res, filename, canonicalPath = req.path) {
+  const filePath = path.join(frontendPath, filename);
+
+  fs.readFile(filePath, "utf8", (error, html) => {
+    if (error) {
+      console.error(`Frontend HTML error (${filename}):`, error);
+      return res.status(500).send("Internal Server Error");
+    }
+
+    const siteUrl = getSiteUrl(req);
+    const pageUrl = `${siteUrl}${canonicalPath.startsWith("/") ? canonicalPath : `/${canonicalPath}`}`;
+
+    const renderedHtml = html
+      .replaceAll("__SITE_URL__", siteUrl)
+      .replaceAll("__PAGE_URL__", pageUrl);
+
+    res.type("html").send(renderedHtml);
+  });
+}
+
+
+/* =========================
+   FRONTEND
+========================= */
 
 app.get(
- ["/","/index.html"],
- (req,res)=>{
-
- res.sendFile(
-   path.join(
-    frontendPath,
-    "index.html"
-   )
- );
-
-});
-
-
+  ["/", "/index.html"],
+  (req, res) => {
+    sendFrontendHtml(req, res, "index.html");
+  }
+);
 
 app.get(
- ["/admin","/admin.html"],
- (req,res)=>{
-
- res.sendFile(
-  path.join(
-   frontendPath,
-   "admin.html"
-  )
- );
-
-});
-
-
-
-app.use(
- express.static(
-  frontendPath
- )
+  ["/admin", "/admin.html"],
+  (req, res) => {
+    sendFrontendHtml(req, res, "admin.html");
+  }
 );
 
 
@@ -662,115 +671,66 @@ app.use(
    HTML PAGE ROUTES
 ========================= */
 
-
-const pages=[
-
- "tool.html",
-
- "admin.html",
-
- "blog.html",
-
- "blog-post.html",
-
- "pricing.html",
-
- "advertise.html",
-
- "api-marketplace.html",
-
- "white-label.html",
-
- "ai-tools.html",
-
- "contact.html",
-
- "privacy.html",
-
- "terms.html",
-
- "cookies.html",
-
- "disclaimer.html",
-
- "affiliate-disclosure.html",
-
- "calculator.html",
-
- "pdf-to-word.html"
-
+const pages = [
+  "tool.html",
+  "admin.html",
+  "blog.html",
+  "blog-post.html",
+  "pricing.html",
+  "advertise.html",
+  "api-marketplace.html",
+  "white-label.html",
+  "ai-tools.html",
+  "contact.html",
+  "privacy.html",
+  "terms.html",
+  "cookies.html",
+  "disclaimer.html",
+  "affiliate-disclosure.html",
+  "calculator.html",
+  "pdf-to-word.html"
 ];
 
+pages.forEach(page => {
+  const cleanRoute = "/" + page.replace(".html", "");
+  const htmlRoute = "/" + page;
+
+  app.get(
+    [cleanRoute, htmlRoute],
+    (req, res) => {
+      sendFrontendHtml(req, res, page);
+    }
+  );
+});
+
+/* Serve static assets after HTML routes so HTML files
+   are rendered through sendFrontendHtml(). */
+app.use(
+  express.static(frontendPath)
+);
 
 
-pages.forEach(page=>{
-
-
- const route =
- "/"+page.replace(".html","");
-
-
- app.get(
-  route,
-  (req,res)=>{
-
-   res.sendFile(
-    path.join(
-     frontendPath,
-     page
-    )
-   );
-
+app.get(
+  ["/tools", "/tools/"],
+  (req, res) => {
+    sendFrontendHtml(req, res, "tool.html");
   }
- );
+);
 
-
-});
-
+app.get(
+  ["/tools/:slug", "/tools/:slug/"],
+  (req, res) => {
+    sendFrontendHtml(req, res, "tool.html");
+  }
+);
 
 
 app.get(
- ["/tools","/tools/"],
- (req,res)=>{
-
- res.sendFile(
-  path.join(
-   frontendPath,
-   "tool.html"
-  )
- );
-
-});
-
-
-
-app.get(
- ["/tools/:slug","/tools/:slug/"],
- (req,res)=>{
-
- res.sendFile(
-  path.join(
-   frontendPath,
-   "tool.html"
-  )
- );
-
-});
-
-
-
-app.get(
- ["/blog/:slug","/blog/:slug/"],
- (req,res)=>{
-
- res.sendFile(
-  path.join(
-   frontendPath,
-   "blog-post.html"
-  )
- );
-
-});
+  ["/blog/:slug", "/blog/:slug/"],
+  (req, res) => {
+    sendFrontendHtml(req, res, "blog-post.html");
+  }
+);
 
 
 
