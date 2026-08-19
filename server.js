@@ -714,6 +714,69 @@ app.use(
 );
 
 
+const toolCategoryRoutes = {
+  "/tools/math": {
+    title: "Math Tools",
+    description: "Free online math tools and calculators for everyday calculations, percentages, equations, and more."
+  },
+  "/tools/utility": {
+    title: "Utility Tools",
+    description: "Free online utility tools for everyday conversions, calculations, documents, and productivity tasks."
+  },
+  "/tools/health": {
+    title: "Health Tools",
+    description: "Free online health calculators and useful tools for everyday health and wellness calculations."
+  },
+  "/tools/generators": {
+    title: "Generators",
+    description: "Free online generators for creating useful content, values, names, text, and other resources."
+  },
+  "/tools/ai": {
+    title: "AI Tools",
+    description: "Free AI-powered tools for prompts, emails, content creation, business ideas, and productivity."
+  },
+  "/tools/seo": {
+    title: "SEO Tools",
+    description: "Free SEO tools for keywords, metadata, search optimization, and website analysis."
+  },
+  "/tools/text": {
+    title: "Text Tools",
+    description: "Free online text tools for formatting, transforming, counting, cleaning, and analyzing text."
+  },
+  "/tools/finance": {
+    title: "Finance Tools",
+    description: "Free online finance calculators and tools for money, percentages, loans, and everyday financial calculations."
+  }
+};
+
+app.get(
+  Object.keys(toolCategoryRoutes).flatMap((route) => [route, `${route}/`]),
+  (req, res) => {
+    const route = req.path.replace(/\/$/, "");
+    const config = toolCategoryRoutes[route];
+
+    const filePath = path.join(frontendPath, "tools-category.html");
+
+    fs.readFile(filePath, "utf8", (error, html) => {
+      if (error) {
+        console.error("Category frontend HTML error:", error);
+        return res.status(500).send("Internal Server Error");
+      }
+
+      const siteUrl = getSiteUrl(req);
+      const pageUrl = `${siteUrl}${route}`;
+
+      const renderedHtml = html
+        .replaceAll("__SITE_URL__", siteUrl)
+        .replaceAll("__PAGE_URL__", pageUrl)
+        .replaceAll("__CATEGORY_TITLE__", config.title)
+        .replaceAll("__CATEGORY_DESCRIPTION__", config.description);
+
+      res.type("html").send(renderedHtml);
+    });
+  }
+);
+
 app.get(
   ["/tools", "/tools/"],
   (req, res) => {
