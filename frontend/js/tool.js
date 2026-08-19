@@ -202,7 +202,7 @@ async function loadRelatedTools(tool) {
     rows.forEach((item) => {
       const card = document.createElement("a");
       card.className = "related-tool-card";
-      card.href = `tool.html?slug=${encodeURIComponent(item.slug)}`;
+      card.href = `/tools/${encodeURIComponent(item.slug)}`;
       card.innerHTML = `<strong>${item.name}</strong><span>${formatToolCategory(item.category)}</span>`;
       container.appendChild(card);
     });

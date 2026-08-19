@@ -465,7 +465,7 @@ function renderTools() {
       <td>${number(tool.affiliateClicks)}</td>
       <td class="actions-cell">
         <button class="small-btn secondary-btn edit-tool" type="button" data-id="${escapeHtml(tool._id)}">Edit</button>
-        <a class="small-btn as-link" href="/tool.html?slug=${encodeURIComponent(tool.slug || "")}" target="_blank" rel="noopener">Open</a>
+        <a class="small-btn as-link" href="/tools/${encodeURIComponent(tool.slug || "")}" target="_blank" rel="noopener">Open</a>
         <button class="danger-btn small-btn delete-tool" type="button" data-id="${escapeHtml(tool._id)}">Delete</button>
       </td>
     </tr>

@@ -62,7 +62,7 @@ function renderTools(tools) {
       <h3>${tool.name}</h3>
       <p>${tool.description || `Free ${formatCategory(tool.category)} tool for everyday tasks.`}</p>
       <div class="tool-actions">
-        <a class="tool-btn" href="tool.html?slug=${encodeURIComponent(tool.slug)}">Use Tool</a>
+        <a class="tool-btn" href="/tools/${encodeURIComponent(tool.slug)}">Use Tool</a>
         <a class="affiliate-link" href="${tool.affiliateUrl ? `${API_BASE}/api/tools/${encodeURIComponent(tool.slug)}/affiliate` : "affiliate-disclosure.html"}" target="_blank">
           ${tool.affiliateLabel || "Recommended Resource"}
         </a>
@@ -91,7 +91,7 @@ function updateToolsItemListSchema(tools) {
       "@type": "ListItem",
       position: index + 1,
       name: tool.name,
-      url: `${window.location.origin}/tool.html?slug=${encodeURIComponent(tool.slug)}`,
+      url: `${window.location.origin}/tools/${encodeURIComponent(tool.slug)}`,
       description: tool.description || `Free ${formatCategory(tool.category)} tool.`
     }))
   });
