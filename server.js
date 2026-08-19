@@ -706,7 +706,11 @@ pages.forEach(page => {
 /* Serve static assets after HTML routes so HTML files
    are rendered through sendFrontendHtml(). */
 app.use(
-  express.static(frontendPath)
+  express.static(frontendPath, {
+    maxAge: "7d",
+    etag: true,
+    lastModified: true
+  })
 );
 
 
