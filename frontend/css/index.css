@@ -170,7 +170,8 @@ a {
   padding: 10px 20px 24px;
 }
 
-.categories button {
+.categories button,
+.categories a {
   min-height: 38px;
   padding: 8px 14px;
   border: 1px solid #d9e2ef;
@@ -180,10 +181,13 @@ a {
   cursor: pointer;
   transition: 0.2s;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .categories button:hover,
-.categories button.active {
+.categories button.active,
+.categories a:hover,
+.categories a.active {
   border-color: #0f766e;
   background: #edfdf8;
   color: #0f766e;
