@@ -25,69 +25,142 @@
   <script src="/js/tools-category.js" defer></script>
 </head>
 
-<body>
+<body class="category-page">
 
-<header class="header">
-  <a class="home-link" href="/tools">← All Tools</a>
-  <h1 id="categoryName">__CATEGORY_TITLE__</h1>
-  <p id="categoryDescription">__CATEGORY_DESCRIPTION__</p>
-</header>
+  <header class="category-topbar">
+    <a class="category-brand" href="/">
+      <span class="brand-mark">S</span>
+      <span>Smart Tools Hub</span>
+    </a>
 
-<main>
-  <section class="search-section">
-    <input
-      type="text"
-      id="searchInput"
-      placeholder="Search tools in this category..."
-      autocomplete="off"
-    >
-  </section>
+    <a class="all-tools-button" href="/tools">
+      ← All Tools
+    </a>
+  </header>
 
-  <nav class="categories" aria-label="Tool categories">
-    <a href="/tools">All Tools</a>
-    <a href="/tools/math">Math Tools</a>
-    <a href="/tools/utility">Utility Tools</a>
-    <a href="/tools/health">Health Tools</a>
-    <a href="/tools/generators">Generators</a>
-    <a href="/tools/ai">AI Tools</a>
-    <a href="/tools/seo">SEO Tools</a>
-    <a href="/tools/text">Text Tools</a>
-    <a href="/tools/finance">Finance Tools</a>
-  </nav>
+  <main class="category-main">
 
-  <section class="ad ad-top" data-ad-position="top">
-    Advertisement Space
-  </section>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a>
+      <span>/</span>
+      <a href="/tools">Tools</a>
+      <span>/</span>
+      <strong id="breadcrumbCategory">__CATEGORY_TITLE__</strong>
+    </nav>
 
-  <section class="tools-section">
-    <div class="section-heading">
-      <h2 id="toolsHeading">__CATEGORY_TITLE__</h2>
-      <p id="toolsSummary">Loading tools...</p>
-    </div>
+    <section class="category-hero">
 
-    <div id="toolsContainer" class="tools-grid"></div>
-  </section>
+      <div class="category-hero-content">
 
-  <section class="ad" data-ad-position="bottom">
-    Advertisement Space
-  </section>
-</main>
+        <div class="category-hero-icon" id="categoryHeroIcon">
+          ✦
+        </div>
 
-<footer class="footer">
-  <p>© 2026 Smart Tools Hub</p>
-  <nav class="footer-links">
-    <a href="/">Home</a>
-    <a href="/tools">All Tools</a>
-    <a href="/contact.html">Contact</a>
-    <a href="/privacy.html">Privacy Policy</a>
-    <a href="/terms.html">Terms of Use</a>
-    <a href="/cookies.html">Cookie Policy</a>
-    <a href="/disclaimer.html">Disclaimer</a>
-    <a href="/affiliate-disclosure.html">Affiliate Disclosure</a>
-    <a href="/pricing.html">Pricing</a>
-    <a href="/api-marketplace.html">API Marketplace</a>
-  </nav>
-</footer>
+        <div class="category-hero-text">
+          <span class="category-eyebrow">SMART TOOLS HUB</span>
+
+          <h1 id="categoryName">__CATEGORY_TITLE__</h1>
+
+          <p id="categoryDescription">
+            __CATEGORY_DESCRIPTION__
+          </p>
+        </div>
+
+      </div>
+
+      <div class="category-search-wrapper">
+        <label for="searchInput" class="sr-only">
+          Search tools
+        </label>
+
+        <div class="category-search-box">
+          <span class="search-icon">⌕</span>
+
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search tools in this category..."
+            autocomplete="off"
+          >
+
+          <button
+            type="button"
+            class="search-clear"
+            id="searchClear"
+            aria-label="Clear search"
+            hidden
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <nav class="category-navigation" aria-label="Tool categories">
+      <a href="/tools">All Tools</a>
+      <a href="/tools/math">Math</a>
+      <a href="/tools/utility">Utility</a>
+      <a href="/tools/health">Health</a>
+      <a href="/tools/generators">Generators</a>
+      <a href="/tools/ai">AI</a>
+      <a href="/tools/seo">SEO</a>
+      <a href="/tools/text">Text</a>
+      <a href="/tools/finance">Finance</a>
+    </nav>
+
+    <section class="ad ad-top" data-ad-position="top">
+      Advertisement Space
+    </section>
+
+    <section class="category-tools-section">
+
+      <div class="category-section-heading">
+
+        <div>
+          <span class="section-eyebrow">EXPLORE</span>
+
+          <h2 id="toolsHeading">
+            __CATEGORY_TITLE__
+          </h2>
+
+          <p>
+            Find the right tool for your task.
+          </p>
+        </div>
+
+        <div class="tools-count" id="toolsSummary">
+          Loading tools...
+        </div>
+
+      </div>
+
+      <div id="toolsContainer" class="tools-grid"></div>
+
+    </section>
+
+    <section class="ad" data-ad-position="bottom">
+      Advertisement Space
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Smart Tools Hub</p>
+
+    <nav class="footer-links">
+      <a href="/">Home</a>
+      <a href="/tools">All Tools</a>
+      <a href="/contact.html">Contact</a>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms of Use</a>
+      <a href="/cookies.html">Cookie Policy</a>
+      <a href="/disclaimer.html">Disclaimer</a>
+      <a href="/affiliate-disclosure.html">Affiliate Disclosure</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/api-marketplace.html">API Marketplace</a>
+    </nav>
+  </footer>
 
 </body>
 </html>

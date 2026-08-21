@@ -212,9 +212,70 @@ function filterCategoryTools() {
 document.addEventListener("DOMContentLoaded", () => {
   loadCategoryTools();
 
-  document
-    .getElementById("searchInput")
-    ?.addEventListener("input", filterCategoryTools);
+  const searchInput = document.getElementById("searchInput");
+  const searchClear = document.getElementById("searchClear");
+
+  if (searchInput) {
+    searchInput.addEventListener("input", filterCategoryTools);
+  }
+
+  if (searchInput && searchClear) {
+    searchInput.addEventListener("input", () => {
+      searchClear.hidden = !searchInput.value;
+    });
+
+    searchClear.addEventListener("click", () => {
+      searchInput.value = "";
+      searchClear.hidden = true;
+      searchInput.focus();
+      filterCategoryTools();
+    });
+  }
+
+  const slug = window.location.pathname
+    .replace(/^\/tools\/?/, "")
+    .replace(/\/$/, "")
+    .toLowerCase();
+
+  const categoryKey = slug === "generators" ? "generator" : slug;
+
+  document.body.dataset.category = categoryKey;
+  document.body.classList.add(categoryKey);
+
+  const iconMap = {
+    math: "∑",
+    utility: "⚙",
+    health: "♥",
+    generator: "✦",
+    ai: "✦",
+    seo: "↗",
+    text: "T",
+    finance: "$"
+  };
+
+  const heroIcon = document.getElementById("categoryHeroIcon");
+
+  if (heroIcon) {
+    heroIcon.textContent = iconMap[categoryKey] || "✦";
+  }
+
+  const breadcrumb = document.getElementById("breadcrumbCategory");
+
+  if (breadcrumb) {
+    breadcrumb.textContent =
+      categoryConfig[categoryKey]?.title || "Tools";
+  }
+
+  document.querySelectorAll(".category-navigation a").forEach(link => {
+    const href = link.getAttribute("href");
+
+    if (
+      href === `/tools/${slug}` ||
+      (slug === "generators" && href === "/tools/generators")
+    ) {
+      link.classList.add("active");
+    }
+  });
 
   if (typeof smartLoadAds === "function") {
     smartLoadAds("top", '[data-ad-position="top"]');
