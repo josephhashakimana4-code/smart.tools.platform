@@ -780,7 +780,7 @@ app.get(
 app.get(
   ["/tools", "/tools/"],
   (req, res) => {
-    sendFrontendHtml(req, res, "tool.html");
+    sendFrontendHtml(req, res, "index.html");
   }
 );
 
