@@ -83,6 +83,15 @@ app.set("trust proxy", 1);
 ========================= */
 
 const allowUnsafeInline = process.env.NODE_ENV !== "production";
+// Production domain configuration from APP_BASE_URL
+const appBaseUrl = process.env.APP_BASE_URL || "http://localhost:5000";
+let productionDomain = "localhost";
+try {
+  const url = new URL(appBaseUrl);
+  productionDomain = url.hostname;
+} catch (e) {
+  console.warn("Invalid APP_BASE_URL, using localhost");
+}
 
 app.use(
   helmet({
@@ -102,6 +111,9 @@ app.use(
 
         connectSrc: [
           "'self'",
+          `https://${productionDomain}`,
+          `https://www.${productionDomain}`,
+          `https://admin.${productionDomain}`,
           "https://*.app.github.dev",
           "https://*.onrender.com"
         ],
@@ -180,7 +192,11 @@ const envOrigins = process.env.ALLOWED_ORIGINS
 
 const allowedOrigins = [
   ...defaultOrigins,
-  ...envOrigins
+  ...envOrigins,
+  appBaseUrl,
+  `https://${productionDomain}`,
+  `https://www.${productionDomain}`,
+  `https://admin.${productionDomain}`
 ];
 
 
@@ -456,6 +472,17 @@ app.use(
   authRoute
 );
 
+/* =========================
+   VERIFICATION ROUTES (Second Verification / 2FA)
+========================= */
+
+const verificationRoute = loadRoute("./routes/verification", "Verification service temporarily unavailable");
+
+app.use(
+  "/api/auth/verification",
+  authLimiter,
+  verificationRoute
+);
 
 
 /* =========================

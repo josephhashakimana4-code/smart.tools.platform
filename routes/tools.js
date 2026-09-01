@@ -291,23 +291,35 @@ function safeOriginalExt(filename, fallback) {
   return ext || fallback;
 }
 
+function getPdfToWordMode(req) {
+  const mode = String(req.body?.mode || "preserve").trim().toLowerCase();
+  return mode === "fast" || mode === "preserve" ? mode : "preserve";
+}
+
 function convertWithWord(inputPath, outputPath, outputType) {
   return new Promise((resolve, reject) => {
+    const shell = process.platform === "win32" ? "powershell.exe" : "pwsh";
+    const args = [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "RemoteSigned",
+      "-File",
+      wordConverterScript,
+      "-InputPath",
+      inputPath,
+      "-OutputPath",
+      outputPath,
+      "-OutputType",
+      outputType
+    ];
+
+    if (process.platform !== "win32") {
+      args.splice(0, 0, "-File");
+    }
+
     execFile(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "RemoteSigned",
-        "-File",
-        wordConverterScript,
-        "-InputPath",
-        inputPath,
-        "-OutputPath",
-        outputPath,
-        "-OutputType",
-        outputType
-      ],
+      shell,
+      args,
       { timeout: 120000, windowsHide: true },
       (error, stdout, stderr) => {
         if (error) {
@@ -395,29 +407,11 @@ router.post("/pdf-to-word", upload.single("file"), validateFile, async (req, res
       await validateUploadedFile(req.file);
     }
 
-    const mode = "fast";
+    const mode = getPdfToWordMode(req);
     const filename = safeName("pdf-to-word", "docx");
     const outputPath = path.join(convertedDir, filename);
 
-    if (mode === "fast") {
-      const text = await extractPdfText(req.file.buffer);
-      if (!text.trim()) {
-        return res.status(422).json({
-          success: false,
-          message: "No selectable text was found in this PDF. Scanned image PDFs need OCR."
-        });
-      }
-
-      const doc = new Document({
-        sections: [{
-          children: text.split(/\n+/).map((line) => new Paragraph({
-            children: [new TextRun(line || " ")]
-          }))
-        }]
-      });
-
-      fs.writeFileSync(outputPath, await Packer.toBuffer(doc));
-    } else {
+    if (mode === "preserve") {
       const inputPath = path.join(uploadsDir, safeName("source-pdf", "pdf"));
       fs.writeFileSync(inputPath, req.file.buffer);
 
@@ -445,6 +439,24 @@ router.post("/pdf-to-word", upload.single("file"), validateFile, async (req, res
       } finally {
         fs.rmSync(inputPath, { force: true });
       }
+    } else {
+      const text = await extractPdfText(req.file.buffer);
+      if (!text.trim()) {
+        return res.status(422).json({
+          success: false,
+          message: "No selectable text was found in this PDF. Scanned image PDFs need OCR."
+        });
+      }
+
+      const doc = new Document({
+        sections: [{
+          children: text.split(/\n+/).map((line) => new Paragraph({
+            children: [new TextRun(line || " ")]
+          }))
+        }]
+      });
+
+      fs.writeFileSync(outputPath, await Packer.toBuffer(doc));
     }
 
     const download = await createDownload(req, {

@@ -1,0 +1,7 @@
+The server.js needs the following updates for production domain support:
+
+1. Add domain extraction from APP_BASE_URL at the top of SECURITY HEADERS section
+2. Update connectSrc to include the production domain from APP_BASE_URL
+3. Update CORS allowedOrigins to include configured domain
+
+This enables the same server.js to work with any domain by just changing APP_BASE_URL environment variable.

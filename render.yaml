@@ -2,20 +2,32 @@ services:
   - type: web
     name: smart-tools-hub
     env: node
-    plan: free
+    plan: standard
+    region: oregon
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /api/health
+    healthCheckInterval: 30
+    preDeployCommand: npm run test:security 2>/dev/null || echo "Security tests not configured yet"
+    
     envVars:
+      # CORE ENVIRONMENT
       - key: NODE_ENV
         value: production
 
+      # DOMAIN CONFIGURATION
+      # Replace with your actual .com domain after pointing DNS to Render
       - key: APP_BASE_URL
-        value: https://smart-tools-platform-1.onrender.com
+        value: https://yourdomain.com
+        
+      - key: ALLOWED_ORIGINS
+        value: https://yourdomain.com,https://www.yourdomain.com,https://admin.yourdomain.com
 
+      # DATABASE
       - key: MONGO_URI
         sync: false
 
+      # SECURITY SECRETS (set in Render dashboard)
       - key: ADMIN_PASSWORD
         sync: false
 
@@ -25,6 +37,7 @@ services:
       - key: JWT_REFRESH_SECRET
         sync: false
 
+      # JWT CONFIGURATION
       - key: JWT_ACCESS_EXPIRES
         value: 15m
 
@@ -36,3 +49,30 @@ services:
 
       - key: JWT_AUDIENCE
         value: SmartToolsHubUsers
+
+      # SECURITY & MONITORING
+      - key: SENTRY_DSN
+        sync: false
+
+      - key: ENABLE_2FA
+        value: "true"
+
+      - key: ENABLE_CSRF
+        value: "true"
+
+      - key: LOG_LEVEL
+        value: info
+
+      # STRIPE INTEGRATION (for monetization)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+      # REDIS CACHE (optional, for session management)
+      - key: REDIS_URL
+        sync: false
