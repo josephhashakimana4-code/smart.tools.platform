@@ -14,10 +14,12 @@ class AuthService {
    */
   async getCsrfToken() {
     try {
-      const response = await fetch("/api/auth/csrf-token");
-      const data = await response.json();
-      this.csrfToken = data.csrfToken;
-      return this.csrfToken;
+      if (typeof window.getCsrfToken === "function") {
+        this.csrfToken = await window.getCsrfToken();
+        return this.csrfToken;
+      }
+
+      throw new Error("Global CSRF helper is not loaded.");
     } catch (error) {
       console.error("Failed to get CSRF token:", error);
       throw error;
@@ -31,7 +33,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -67,7 +69,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -108,7 +110,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/logout", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/logout", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${this.accessToken}`,
@@ -144,7 +146,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/verify-email", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/verify-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -174,7 +176,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/forgot-password", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/forgot-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -203,7 +205,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/reset-password", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/reset-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -234,7 +236,7 @@ class AuthService {
     if (!this.accessToken) throw new Error("Not authenticated");
 
     try {
-      const response = await fetch("/api/auth/change-password", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/change-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -276,7 +278,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/me", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/me", {
         headers: {
           "Authorization": `Bearer ${this.accessToken}`,
           "X-CSRF-Token": this.csrfToken
@@ -311,7 +313,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/profile", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/profile", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -353,7 +355,7 @@ class AuthService {
     if (!this.csrfToken) await this.getCsrfToken();
 
     try {
-      const response = await fetch("/api/auth/account", {
+      const response = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)("/api/auth/account", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -393,7 +395,10 @@ class AuthService {
     if (!this.refreshToken) throw new Error("No refresh token available");
 
     try {
-      const response = await fetch("/api/auth/refresh", {
+      const requestFn =
+        typeof window.apiFetch === "function" ? window.apiFetch : fetch;
+
+      const response = await requestFn("/api/auth/refresh", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

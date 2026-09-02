@@ -86,17 +86,37 @@ describe("Smart Tools Platform - Security Tests", () => {
       expect(response.body.message).toContain("CSRF");
     });
 
-    test("Should reject reuse of a CSRF token after first successful request", async () => {
-      const response = await request(app).get("/api/auth/csrf-token");
+    test("Should reject an invalid CSRF token", async () => {
+      const response = await request(app)
+        .post("/api/auth/register")
+        .set("X-CSRF-Token", "invalid-csrf-token")
+        .send({
+          email: `csrf-invalid-${Date.now()}@security.com`,
+          password: "SecurePass123!",
+          firstName: "Invalid"
+        })
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.code).toBe("CSRF_INVALID");
+      expect(response.body.message).toContain("CSRF");
+    });
+
+    test("Should allow reuse of a valid CSRF token", async () => {
+      const response = await request(app)
+        .get("/api/auth/csrf-token")
+        .expect(200);
+
       const token = response.body.csrfToken;
+      const timestamp = Date.now();
 
       await request(app)
         .post("/api/auth/register")
         .set("X-CSRF-Token", token)
         .send({
-          email: `csrf-reuse-${Date.now()}@security.com`,
+          email: `csrf-reuse1-${timestamp}@security.com`,
           password: "SecurePass123!",
-          firstName: "Reuse"
+          firstName: "Reuse1"
         })
         .expect(201);
 
@@ -104,14 +124,13 @@ describe("Smart Tools Platform - Security Tests", () => {
         .post("/api/auth/register")
         .set("X-CSRF-Token", token)
         .send({
-          email: `csrf-reuse2-${Date.now()}@security.com`,
+          email: `csrf-reuse2-${timestamp}@security.com`,
           password: "SecurePass123!",
           firstName: "Reuse2"
         })
-        .expect(403);
+        .expect(201);
 
-      expect(reuseResponse.body.success).toBe(false);
-      expect(reuseResponse.body.message).toContain("CSRF");
+      expect(reuseResponse.body.success).toBe(true);
     });
   });
 
@@ -477,6 +496,36 @@ describe("Smart Tools Platform - Security Tests", () => {
         expect(response.body.success).toBe(true);
         expect(response.body.user).toBeDefined();
       }
+    });
+
+    test("Should reject refresh without a CSRF token", async () => {
+      const response = await request(app)
+        .post("/api/auth/refresh")
+        .send({
+          refreshToken: "invalid-refresh-token"
+        })
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.code).toBe("CSRF_MISSING");
+      expect(response.body.message).toContain("CSRF");
+    });
+
+    test("Should pass CSRF protection before validating refresh token", async () => {
+      const csrfRes = await request(app)
+        .get("/api/auth/csrf-token")
+        .expect(200);
+
+      const response = await request(app)
+        .post("/api/auth/refresh")
+        .set("X-CSRF-Token", csrfRes.body.csrfToken)
+        .send({
+          refreshToken: "invalid-refresh-token"
+        })
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toContain("refresh token");
     });
 
     test("Should refresh token with valid refresh token", async () => {

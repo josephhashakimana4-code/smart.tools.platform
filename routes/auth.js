@@ -181,7 +181,7 @@ async function createUserDocument(data) {
 }
 
 /**
- * POST /api/auth/csrf-token
+ * GET /api/auth/csrf-token
  * Get CSRF token for client
  */
 router.get("/csrf-token", (req, res) => {
