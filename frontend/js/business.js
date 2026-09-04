@@ -1,33 +1,13 @@
 const BUSINESS_API_BASE = window.location.protocol === "file:" ? "http://localhost:5000" : window.location.origin;
-let businessCsrfToken = "";
-
-function captureCsrfToken(response) {
-  const token = response.headers.get("x-csrf-token");
-  if (token) businessCsrfToken = token;
-  return response;
-}
-
 async function postBusiness(path, body) {
-  const tokenResponse = await fetch(`${BUSINESS_API_BASE}/api/business/plans`);
-  captureCsrfToken(tokenResponse);
-  const res = await fetch(`${BUSINESS_API_BASE}${path}`, {
+  const res = await apiFetch(`${BUSINESS_API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-CSRF-Token": businessCsrfToken },
+    headers: {
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify(body)
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || "Request failed.");
-  return data;
-}
 
-async function loadPlans() {
-  const grid = document.getElementById("plansGrid");
-  const select = document.getElementById("checkoutPlan");
-  const apiSelect = document.getElementById("apiPlan");
-  if (!grid && !select && !apiSelect) return;
-
-  const res = await fetch(`${BUSINESS_API_BASE}/api/business/plans`);
-  captureCsrfToken(res);
   const data = await res.json();
   const plans = data.plans || [];
 

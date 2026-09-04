@@ -2,7 +2,7 @@ const SMART_ANALYTICS_BASE = window.location.protocol === "file:" ? "http://loca
 let smartBusinessSettingsLoaded = false;
 
 function smartTrack(type, metadata = {}) {
-  fetch(`${SMART_ANALYTICS_BASE}/api/analytics/event`, {
+  apiFetch(`${SMART_ANALYTICS_BASE}/api/analytics/event`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -37,7 +37,7 @@ async function smartLoadAds(position, containerSelector) {
       </a>
     `;
     container.querySelector("a")?.addEventListener("click", () => {
-      fetch(`${SMART_ANALYTICS_BASE}/api/analytics/ads/${ad._id}/click`, {
+      apiFetch(`${SMART_ANALYTICS_BASE}/api/analytics/ads/${ad._id}/click`, {
         method: "POST",
         keepalive: true
       }).catch(() => {});

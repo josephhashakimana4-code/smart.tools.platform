@@ -95,19 +95,11 @@ localStorage.removeItem(TOKEN_KEY);
 }
 
 async getCsrfToken() {
-const res = await fetch(`${this.baseUrl}/api/auth/csrf-token`, {
-method: "GET",
-credentials: "same-origin"
-});
-
-const data = await res.json().catch(() => ({}));
-
-if (!res.ok || !data.csrfToken) {
-throw new Error(data.message || "Failed to obtain CSRF token.");
-}
-
-this.csrfToken = data.csrfToken;
-return this.csrfToken;
+  if (typeof window.getCsrfToken === "function") {
+    this.csrfToken = await window.getCsrfToken();
+    return this.csrfToken;
+  }
+  throw new Error("Global CSRF helper is not loaded.");
 }
 
 async headers(method = "GET") {
@@ -131,14 +123,18 @@ return headers;
 async request(path, options = {}) {
 const method = (options.method || "GET").toUpperCase();
 
-const res = await fetch(`${this.baseUrl}${path}`, {
-...options,
-credentials: "same-origin",
-headers: {
-...(await this.headers(method)),
-...(options.headers || {})
-}
-});
+const requestUrl = `${this.baseUrl}${path}`;
+const res = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)(
+  requestUrl,
+  {
+    ...options,
+    credentials: "same-origin",
+    headers: {
+      ...(await this.headers(method)),
+      ...(options.headers || {})
+    }
+  }
+);
 
 const data = await res.json().catch(() => ({}));
 

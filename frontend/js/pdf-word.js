@@ -16,7 +16,7 @@ async function uploadPDF() {
   downloadLink.style.display = "none";
 
   try {
-    const res = await fetch(`${API_BASE}/api/tools/pdf-to-word`, {
+    const res = await apiFetch(`${API_BASE}/api/tools/pdf-to-word`, {
       method: "POST",
       body: formData
     });

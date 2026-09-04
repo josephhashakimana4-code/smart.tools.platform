@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", function () {
       status.style.color = "black";
 
       const apiBase = window.location.protocol === "file:" ? "http://localhost:5000" : window.location.origin;
-      const response = await fetch(`${apiBase}/api/contact`, {
+      const response = await apiFetch(`${apiBase}/api/contact`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

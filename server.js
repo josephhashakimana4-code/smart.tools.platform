@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const express = require("express");
 const mongoose = require("mongoose");
@@ -299,10 +300,7 @@ const {
 }=require("./middlewares/validation");
 
 
-const {
-  generateCsrfTokenMiddleware,
-  csrfProtection
-}=require("./middlewares/csrf");
+const { csrfProtection } = require("./middlewares/csrf");
 
 
 const {
@@ -318,10 +316,6 @@ app.use(
   limitBodySize("5mb")
 );
 
-
-app.use(
-  generateCsrfTokenMiddleware
-);
 
 app.use(csrfProtection);
 

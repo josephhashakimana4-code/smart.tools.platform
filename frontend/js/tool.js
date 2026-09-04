@@ -85,7 +85,7 @@ async function loadTool() {
 }
 
 function trackToolView(toolSlug) {
-  fetch(`${API_BASE}/api/tools/${encodeURIComponent(toolSlug)}/view`, {
+  apiFetch(`${API_BASE}/api/tools/${encodeURIComponent(toolSlug)}/view`, {
     method: "POST",
     keepalive: true
   }).catch(() => {});
@@ -1151,7 +1151,7 @@ async function processDocumentTool(slug) {
   startProcessingStatus(slug);
 
   try {
-    const res = await fetch(`${API_BASE}/api/tools/${slug}`, {
+    const res = await apiFetch(`${API_BASE}/api/tools/${slug}`, {
       method: "POST",
       body: formData
     });

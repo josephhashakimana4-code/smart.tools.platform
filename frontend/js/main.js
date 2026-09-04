@@ -158,7 +158,7 @@ function scheduleSearchLog(query, resultCount) {
   if (!query || query.length < 2) return;
 
   searchLogTimer = setTimeout(() => {
-    fetch(`${API_BASE}/api/analytics/search`, {
+    apiFetch(`${API_BASE}/api/analytics/search`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, resultCount }),
@@ -172,7 +172,7 @@ async function handleNewsletter(event) {
   const email = document.getElementById("newsletterEmail").value.trim();
   const message = document.getElementById("newsletterMessage");
   try {
-    const res = await fetch(`${API_BASE}/api/analytics/newsletter`, {
+    const res = await apiFetch(`${API_BASE}/api/analytics/newsletter`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email })
