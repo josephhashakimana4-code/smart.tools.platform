@@ -1,14 +1,12 @@
 services:
   - type: web
     name: smart-tools-hub
-    env: node
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: standard
     region: oregon
-    buildCommand: npm install
-    startCommand: npm start
     healthCheckPath: /api/health
     healthCheckInterval: 30
-    preDeployCommand: npm run test:security 2>/dev/null || echo "Security tests not configured yet"
     
     envVars:
       # CORE ENVIRONMENT

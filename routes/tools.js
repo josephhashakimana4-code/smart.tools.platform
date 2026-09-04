@@ -43,39 +43,102 @@ const { writeFileSync, unlinkSync } = require("fs");
 const { spawnSync } = require("child_process");
 
 async function scanBufferForVirus(buffer) {
-  // Try to use clamscan CLI if available. This is best-effort: if not present,
-  // warn and allow upload (do NOT block deployment). In production, install
-  // ClamAV and ensure `clamscan` is available or integrate with a managed
-  // scanning service.
+  const fsPromises = require("fs").promises;
+  const crypto = require("crypto");
+  const { execFile } = require("child_process");
+  const { promisify } = require("util");
+
+  const execFileAsync = promisify(execFile);
+  const tempName = `upload-scan-${Date.now()}-${crypto.randomBytes(8).toString("hex")}`;
+  const tempPath = path.join(os.tmpdir(), tempName);
+
   try {
-    const tmp = path.join(os.tmpdir(), `upload-scan-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    writeFileSync(tmp, buffer);
-    const res = spawnSync("clamscan", ["--no-summary", tmp], { encoding: "utf8", timeout: 20000 });
-    unlinkSync(tmp);
+    await fsPromises.writeFile(tempPath, buffer);
 
-    if (res.error) {
-      console.warn("clamscan not available or failed:", res.error.message);
-      // In production we fail closed when scanner is missing to avoid accepting
-      // potentially dangerous uploads. In non-production we allow uploads.
-      if (process.env.NODE_ENV === "production") {
-        return { ok: false, info: "no-scanner" };
+    let stdout = "";
+    let stderr = "";
+
+    try {
+      const result = await execFileAsync(
+        "clamscan",
+        ["--no-summary", tempPath],
+        {
+          encoding: "utf8",
+          timeout: 20000,
+          maxBuffer: 1024 * 1024
+        }
+      );
+
+      stdout = String(result.stdout || "");
+      stderr = String(result.stderr || "");
+
+      // ClamAV exit code 0 = clean.
+      return {
+        ok: true,
+        status: "clean",
+        info: "ClamAV scan completed successfully"
+      };
+    } catch (err) {
+      const code = typeof err.code === "number" ? err.code : null;
+      stdout = String(err.stdout || "");
+      stderr = String(err.stderr || "");
+
+      // ClamAV exit code 1 = virus FOUND.
+      if (code === 1 || /FOUND/i.test(`${stdout}\n${stderr}`)) {
+        console.warn("ClamAV detected malware:", `${stdout}\n${stderr}`.trim());
+
+        return {
+          ok: false,
+          status: "infected",
+          info: "Malware detected by ClamAV"
+        };
       }
-      return { ok: true, info: "no-scanner" };
-    }
 
-    // clamscan prints: /tmp/...: OK  or /tmp/...: Eicar-Test-Signature FOUND
-    const out = String(res.stdout || "") + String(res.stderr || "");
-    if (/FOUND/i.test(out)) {
-      return { ok: false, info: out.trim() };
-    }
+      // Command unavailable.
+      if (
+        err.code === "ENOENT" ||
+        /not found/i.test(String(err.message || ""))
+      ) {
+        console.error("ClamAV is not installed or clamscan is not on PATH.");
 
-    return { ok: true, info: out.trim() };
+        return {
+          ok: false,
+          status: "unavailable",
+          info: "Virus scanner unavailable"
+        };
+      }
+
+      // ClamAV exit code 2 = scanner error.
+      console.error(
+        "ClamAV scanner error:",
+        {
+          code,
+          message: err.message,
+          stdout,
+          stderr
+        }
+      );
+
+      return {
+        ok: false,
+        status: "error",
+        info: "Virus scanner error"
+      };
+    }
   } catch (err) {
-    console.warn("Virus scan failed:", err.message);
-    if (process.env.NODE_ENV === "production") {
-      return { ok: false, info: `scan-error: ${err.message}` };
+    console.error("Unable to prepare file for virus scan:", err);
+
+    return {
+      ok: false,
+      status: "error",
+      info: "Virus scan could not be completed"
+    };
+  } finally {
+    try {
+      await fsPromises.rm(tempPath, { force: true });
+    } catch (cleanupErr) {
+      console.warn("Temporary scan file cleanup failed:", cleanupErr.message);
     }
-    return { ok: true, info: "scan-error" };
   }
 }
 
@@ -108,8 +171,19 @@ async function validateFile(req, res, next) {
   // Virus scan (best-effort)
   try {
     const result = await scanBufferForVirus(req.file.buffer);
-    if (!result.ok) {
-      return res.status(400).json({ success: false, message: "Uploaded file appears to be infected", info: result.info });
+
+    if (result.status === "infected") {
+      return res.status(400).json({
+        success: false,
+        message: "Uploaded file was rejected because malware was detected."
+      });
+    }
+
+    if (result.status === "unavailable" || result.status === "error") {
+      return res.status(503).json({
+        success: false,
+        message: "File security scanning is temporarily unavailable. Please try again later."
+      });
     }
   } catch (err) {
     console.warn("Scan error:", err.message);
@@ -129,8 +203,19 @@ async function validateFiles(req, res, next) {
 
     try {
       const result = await scanBufferForVirus(file.buffer);
-      if (!result.ok) {
-        return res.status(400).json({ success: false, message: "One or more uploaded files appear infected", info: result.info });
+
+      if (result.status === "infected") {
+        return res.status(400).json({
+          success: false,
+          message: "One or more uploaded files were rejected because malware was detected."
+        });
+      }
+
+      if (result.status === "unavailable" || result.status === "error") {
+        return res.status(503).json({
+          success: false,
+          message: "File security scanning is temporarily unavailable. Please try again later."
+        });
       }
     } catch (err) {
       console.warn("Scan error:", err.message);
@@ -404,7 +489,6 @@ router.post("/pdf-to-word", upload.single("file"), validateFile, async (req, res
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a PDF file." });
-      await validateUploadedFile(req.file);
     }
 
     const mode = getPdfToWordMode(req);
@@ -478,7 +562,6 @@ router.post("/word-to-pdf", upload.single("file"), validateFile, async (req, res
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a Word document." });
-      await validateUploadedFile(req.file);
     }
 
     const inputExt = safeOriginalExt(req.file.originalname, "docx");
