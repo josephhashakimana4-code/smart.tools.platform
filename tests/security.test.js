@@ -1,5 +1,6 @@
 const request = require("supertest");
 const mongoose = require("mongoose");
+const { Document, Packer, Paragraph, TextRun } = require("docx");
 require("dotenv").config();
 
 // Mock app for testing
@@ -653,6 +654,32 @@ describe("Smart Tools Platform - Security Tests", () => {
       expect(response2.body.message).toBe("If email exists, password reset link has been sent");
     });
 
+    test("Should reject reusing the current password during reset", async () => {
+      const resetCsrfToken = await getCsrfToken();
+
+      const forgotResponse = await request(app)
+        .post("/api/auth/forgot-password")
+        .set("X-CSRF-Token", resetCsrfToken)
+        .send({
+          email: resetTestEmail
+        })
+        .expect(200);
+
+      const resetToken = forgotResponse.body.resetToken;
+
+      const response = await request(app)
+        .post("/api/auth/reset-password")
+        .set("X-CSRF-Token", resetCsrfToken)
+        .send({
+          resetToken,
+          newPassword: "ResetTest123!"
+        })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toMatch(/current password|different/i);
+    });
+
     test("Should reject invalid reset token", async () => {
       const response = await request(app)
         .post("/api/auth/reset-password")
@@ -796,6 +823,16 @@ describe("Smart Tools Platform - Security Tests", () => {
   // 10. SECURITY HEADERS TESTS
   // ==========================================
   describe("Security Headers", () => {
+    test("Should report unavailable when the database is disconnected", async () => {
+      const response = await request(app)
+        .get("/api/health")
+        .expect(503);
+
+      expect(response.body.ok).toBe(false);
+      expect(response.body.status).toBe("degraded");
+      expect(response.body.database).toBe("disconnected");
+    });
+
     test("Should include HSTS header", async () => {
       const response = await request(app).get("/health");
 
@@ -957,6 +994,57 @@ describe("Smart Tools Platform - Security Tests", () => {
           });
 
         expect([400, 409]).toContain(response.status);
+      }
+    });
+  });
+
+  // ==========================================
+  // 10. FILE UPLOAD/DOWNLOAD TESTS
+  // ==========================================
+  describe("File Upload & Download", () => {
+    test("Should allow Word conversion when ClamAV is unavailable", async () => {
+      const ConvertedFile = require("../models/ConvertedFile");
+      const records = new Map();
+      const recordId = "test-converted-file";
+      const createSpy = jest.spyOn(ConvertedFile, "create").mockImplementation(async (values) => {
+        const record = { ...values, _id: recordId, downloadCount: 0 };
+        records.set(recordId, record);
+        return record;
+      });
+      const findByIdSpy = jest.spyOn(ConvertedFile, "findById").mockImplementation(async (id) => {
+        return records.get(String(id)) || null;
+      });
+      const updateOneSpy = jest.spyOn(ConvertedFile, "updateOne").mockResolvedValue({ modifiedCount: 1 });
+
+      const csrfRes = await request(app).get("/api/auth/csrf-token").expect(200);
+
+      const wordDoc = new Document({
+        sections: [{ children: [new Paragraph({ children: [new TextRun("Upload smoke test")] })] }]
+      });
+      const wordBytes = await Packer.toBuffer(wordDoc);
+
+      const response = await request(app)
+        .post("/api/tools/word-to-pdf")
+        .set("X-CSRF-Token", csrfRes.body.csrfToken)
+        .attach("file", Buffer.from(wordBytes), {
+          filename: "upload-smoke-test.docx",
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        });
+
+      try {
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.id).toBe(recordId);
+
+        const downloadRes = await request(app)
+          .get(`/api/tools/download/${response.body.id}`)
+          .expect(200);
+
+        expect(downloadRes.headers["content-type"]).toMatch(/application\/pdf/);
+      } finally {
+        createSpy.mockRestore();
+        findByIdSpy.mockRestore();
+        updateOneSpy.mockRestore();
       }
     });
   });

@@ -28,6 +28,7 @@ function check(condition, message) {
     log(`  ✓ ${message}`, 'green');
     return true;
   } else {
+    failed += 1;
     log(`  ✗ ${message}`, 'red');
     return false;
   }
@@ -57,10 +58,11 @@ passed += check(
 // 2. Security Configuration
 section('2️⃣  Security Configuration');
 const serverContent = fs.readFileSync('server.js', 'utf8');
+const validationContent = fs.readFileSync('middlewares/validation.js', 'utf8');
 passed += check(serverContent.includes('helmet('), 'Helmet.js security headers enabled');
 passed += check(serverContent.includes('csrfProtection'), 'CSRF protection configured');
 passed += check(serverContent.includes('rateLimit'), 'Rate limiting configured');
-passed += check(serverContent.includes('xss'), 'XSS protection enabled');
+passed += check(validationContent.includes('xss'), 'XSS protection enabled');
 passed += check(serverContent.includes('hpp()'), 'HPP protection enabled');
 
 // 3. Authentication & Authorization
@@ -68,15 +70,16 @@ section('3️⃣  Authentication & Authorization');
 passed += check(fs.existsSync('middlewares/jwt-auth.js'), 'JWT authentication');
 passed += check(fs.existsSync('middlewares/role.js'), 'Role-based access control');
 passed += check(fs.existsSync('routes/auth.js'), 'Auth endpoints configured');
-const authContent = fs.readFileSync('routes/auth.js', 'utf8');
-passed += check(authContent.includes('2fa') || authContent.includes('otp'), '2FA/OTP available');
+passed += check(
+  fs.existsSync('routes/verification.js') && serverContent.includes('routes/verification'),
+  'Second-verification routes mounted'
+);
 
 // 4. API Security
 section('4️⃣  API Security');
 passed += check(fs.existsSync('routes/admin.js'), 'Admin routes protected');
 passed += check(fs.existsSync('routes/business.js'), 'Business routes secured');
-passed += check(serverContent.includes('/api', 'apiLimiter'), 'API rate limiting active');
-const validationContent = fs.readFileSync('middlewares/validation.js', 'utf8');
+passed += check(serverContent.includes('app.use("/api", apiLimiter)'), 'API rate limiting active');
 passed += check(validationContent.includes('validate'), 'Request validation middleware');
 
 // 5. Database Configuration
@@ -95,10 +98,11 @@ passed += check(fs.existsSync('middlewares/logger.js'), 'Custom logger configure
 
 // 7. File Upload Security
 section('7️⃣  File Upload Security');
-passed += check(serverContent.includes('multer'), 'File upload handler');
-passed += check(serverContent.includes('fileValidator'), 'File validation');
-passed += check(serverContent.includes('scanBufferForVirus'), 'Virus scanning');
-passed += check(serverContent.includes('fileSize: 20'), 'File size limits enforced');
+const toolsContent = fs.readFileSync('routes/tools.js', 'utf8');
+passed += check(toolsContent.includes('multer('), 'File upload handler');
+passed += check(toolsContent.includes('validateFileSignature'), 'File validation');
+passed += check(toolsContent.includes('scanBufferForVirus'), 'Virus scanning');
+passed += check(toolsContent.includes('fileSize: 20'), 'File size limits enforced');
 
 // 8. Error Handling
 section('8️⃣  Error Handling');
@@ -142,6 +146,10 @@ if (percentage >= 90) {
 } else {
   log('❌ Platform needs significant work before production', 'red');
   log('Complete all checks before deploying', 'red');
+}
+
+if (percentage < 90) {
+  process.exitCode = 1;
 }
 
 log('\n📚 Key Documentation:', 'cyan');

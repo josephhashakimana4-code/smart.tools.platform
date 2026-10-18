@@ -70,6 +70,40 @@ function smartInjectCode(id, code) {
   });
 }
 
+function applyBrandText(value, fallbackValue = "Smart Tools Hub") {
+  const brandName = value && String(value).trim() ? String(value).trim() : fallbackValue;
+  const brandPattern = /(Smart Tools Hub|Smart Tools Platform)/gi;
+
+  const replaceBrand = (text) => {
+    if (!text) return text;
+    return text.replace(brandPattern, brandName);
+  };
+
+  document.querySelectorAll("[data-brand-name]").forEach((node) => {
+    node.textContent = brandName;
+  });
+
+  document.querySelectorAll("[data-brand-label]").forEach((node) => {
+    node.textContent = brandName;
+  });
+
+  document.title = replaceBrand(document.title);
+
+  [
+    "meta[property='og:title']",
+    "meta[name='twitter:title']",
+    "meta[name='twitter:site']",
+    "meta[name='application-name']"
+  ].forEach((selector) => {
+    const tag = document.querySelector(selector);
+    if (tag && tag.content) {
+      tag.content = replaceBrand(tag.content);
+    }
+  });
+
+  document.documentElement.setAttribute("data-brand-name", brandName);
+}
+
 async function smartLoadBusinessSettings() {
   if (smartBusinessSettingsLoaded) return;
   smartBusinessSettingsLoaded = true;
@@ -78,11 +112,7 @@ async function smartLoadBusinessSettings() {
     const res = await fetch(`${SMART_ANALYTICS_BASE}/api/business/settings`);
     const settings = await res.json();
 
-    if (settings.brandName) {
-      document.querySelectorAll("[data-brand-name]").forEach((node) => {
-        node.textContent = settings.brandName;
-      });
-    }
+    applyBrandText(settings?.brandName || "Smart Tools Hub");
 
     if (settings.adsensePublisherId && !document.getElementById("smart-adsense-script")) {
       const script = document.createElement("script");
@@ -97,6 +127,7 @@ async function smartLoadBusinessSettings() {
     smartInjectCode("smart-adsterra-code", settings.adsterraCode);
   } catch (err) {
     console.warn("Business settings unavailable", err);
+    applyBrandText("Smart Tools Hub");
   }
 }
 

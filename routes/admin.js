@@ -74,6 +74,25 @@ function adminPassword() {
   return process.env.ADMIN_PASSWORD || null;
 }
 
+function compareAdminPassword(candidatePassword, expectedPassword) {
+  if (!candidatePassword || !expectedPassword) {
+    return false;
+  }
+
+  const candidate = Buffer.from(String(candidatePassword), "utf8");
+  const expected = Buffer.from(String(expectedPassword), "utf8");
+
+  if (candidate.length !== expected.length) {
+    return false;
+  }
+
+  try {
+    return crypto.timingSafeEqual(candidate, expected);
+  } catch (error) {
+    return candidate.toString("utf8") === expected.toString("utf8");
+  }
+}
+
 /* =========================
    TOKEN GENERATOR (SECURE)
 ========================= */
@@ -138,8 +157,9 @@ function slugify(value) {
 ========================= */
 router.post("/login", (req, res) => {
   const password = String(req.body.password || "");
+  const expectedPassword = adminPassword();
 
-  if (!adminPassword() || password !== adminPassword()) {
+  if (!expectedPassword || !compareAdminPassword(password, expectedPassword)) {
     return res.status(401).json({ message: "Incorrect password." });
   }
 

@@ -526,30 +526,25 @@ app.use(
 ========================= */
 
 
-const healthResponse = () => ({
-  ok:true,
+const healthResponse = () => {
+  const databaseConnected = mongoose.connection.readyState === 1;
 
-  status:"healthy",
-
-  service:"smart-tools-platform",
-
-  timestamp:new Date().toISOString(),
-
-  database:
-    mongoose.connection.readyState === 1
-    ? "connected"
-    : "disconnected"
-
-});
+  return {
+    ok: databaseConnected,
+    status: databaseConnected ? "healthy" : "degraded",
+    service: "smart-tools-platform",
+    timestamp: new Date().toISOString(),
+    database: databaseConnected ? "connected" : "disconnected"
+  };
+};
 
 
 
 app.get(
  "/health",
  (req,res)=>{
-   res.json(
-     healthResponse()
-   );
+   const health = healthResponse();
+   res.status(health.ok ? 200 : 503).json(health);
  }
 );
 
@@ -558,9 +553,8 @@ app.get(
 app.get(
  "/api/health",
  (req,res)=>{
-   res.json(
-     healthResponse()
-   );
+   const health = healthResponse();
+   res.status(health.ok ? 200 : 503).json(health);
  }
 );
 

@@ -31,6 +31,29 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+function isBcryptHash(value) {
+  return typeof value === "string" && /^\$2[aby]?\$/.test(value);
+}
+
+function hashPassword(password) {
+  return bcrypt.hashSync(String(password), 12);
+}
+
+function constantTimeEquals(a, b) {
+  const left = Buffer.from(String(a || ""), "utf8");
+  const right = Buffer.from(String(b || ""), "utf8");
+
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  try {
+    return crypto.timingSafeEqual(left, right);
+  } catch (error) {
+    return left.toString("utf8") === right.toString("utf8");
+  }
+}
+
 function createMemoryUser(data) {
   const isTestEnvironment = process.env.NODE_ENV === "test";
   const password = typeof data.password === "string" && data.password.startsWith("$2")
@@ -65,7 +88,16 @@ function createMemoryUser(data) {
     lastPasswordChange: data.lastPasswordChange,
     accountDeletedAt: data.accountDeletedAt,
     comparePassword: async function (candidatePassword) {
-      return bcrypt.compare(candidatePassword, this.password);
+      const storedPassword = this.password;
+      if (!storedPassword) {
+        return false;
+      }
+
+      if (isBcryptHash(storedPassword)) {
+        return bcrypt.compare(candidatePassword, storedPassword);
+      }
+
+      return constantTimeEquals(candidatePassword, storedPassword);
     },
     isAccountLocked: function () {
       return this.lockUntil && this.lockUntil > Date.now();
@@ -585,8 +617,18 @@ router.post("/reset-password", validateRequiredFields(["resetToken", "newPasswor
       });
     }
 
+    const trimmedPassword = newPassword.trim();
+    const sameAsCurrent = await user.comparePassword(trimmedPassword);
+    if (sameAsCurrent) {
+      logSecurityEvent("password_reset_failed", user._id, { reason: "Password reset reused current password", ip: ipAddress }, "medium");
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from your current password"
+      });
+    }
+
     // Update password
-    user.password = newPassword.trim();
+    user.password = hashPassword(trimmedPassword);
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     user.loginAttempts = 0;
@@ -640,8 +682,18 @@ router.post("/change-password", authMiddleware, validatePasswordStrength, async 
       });
     }
 
+    const trimmedNewPassword = newPassword.trim();
+    const sameAsCurrent = await user.comparePassword(trimmedNewPassword);
+    if (sameAsCurrent) {
+      logSecurityEvent("password_change_failed", user._id, { reason: "Password change reused current password", ip: ipAddress }, "medium");
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from your current password"
+      });
+    }
+
     // Update password and invalidate all existing sessions
-    user.password = newPassword;
+    user.password = hashPassword(trimmedNewPassword);
     user.tokenVersion += 1;
     user.activeSessions = [];
     await saveUser(user);

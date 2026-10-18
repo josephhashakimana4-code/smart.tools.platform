@@ -5,11 +5,9 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const multer = require("multer");
-const { fileTypeFromBuffer } = require("file-type");
 const mammoth = require("mammoth");
 const { Document, Packer, Paragraph, TextRun } = require("docx");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
-const { PDFParse } = require("pdf-parse");
 const Tool = require("../models/Tool");
 const validateFileSignature = require("../middlewares/fileValidator");
 const ConvertedFile = require("../models/ConvertedFile");
@@ -21,6 +19,11 @@ const allowedMimeTypes = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/msword"
 ];
+
+function shouldBlockUploadWhenScannerUnavailable() {
+  const value = String(process.env.CLAMAV_REQUIRED || "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(value);
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -180,10 +183,19 @@ async function validateFile(req, res, next) {
     }
 
     if (result.status === "unavailable" || result.status === "error") {
-      return res.status(503).json({
-        success: false,
-        message: "File security scanning is temporarily unavailable. Please try again later."
+      if (shouldBlockUploadWhenScannerUnavailable()) {
+        return res.status(503).json({
+          success: false,
+          message: "File security scanning is temporarily unavailable. Please try again later."
+        });
+      }
+
+      console.warn("Virus scanner unavailable; allowing upload to continue in non-blocking mode.", {
+        status: result.status,
+        info: result.info
       });
+
+      return next();
     }
   } catch (err) {
     console.warn("Scan error:", err.message);
@@ -212,10 +224,19 @@ async function validateFiles(req, res, next) {
       }
 
       if (result.status === "unavailable" || result.status === "error") {
-        return res.status(503).json({
-          success: false,
-          message: "File security scanning is temporarily unavailable. Please try again later."
+        if (shouldBlockUploadWhenScannerUnavailable()) {
+          return res.status(503).json({
+            success: false,
+            message: "File security scanning is temporarily unavailable. Please try again later."
+          });
+        }
+
+        console.warn("Virus scanner unavailable during multi-file upload; continuing in non-blocking mode.", {
+          status: result.status,
+          info: result.info
         });
+
+        continue;
       }
     } catch (err) {
       console.warn("Scan error:", err.message);
@@ -223,26 +244,6 @@ async function validateFiles(req, res, next) {
   }
 
   next();
-}
-
-async function validateUploadedFile(file) {
-  if (!file || !file.buffer) {
-    throw new Error("No file uploaded");
-  }
-
-  const type = await fileTypeFromBuffer(file.buffer);
-
-  if (!type) {
-    throw new Error("Unable to identify file type");
-  }
-
-  const allowedExtensions = ["pdf", "doc", "docx"];
-
-  if (!allowedExtensions.includes(type.ext)) {
-    throw new Error("Invalid file signature");
-  }
-
-  return true;
 }
 
 const convertedDir = path.join(__dirname, "..", "converted");
@@ -438,6 +439,7 @@ function wrapText(text, maxLength = 88) {
 }
 
 async function extractPdfText(buffer) {
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   const data = await parser.getText();
   await parser.destroy?.();

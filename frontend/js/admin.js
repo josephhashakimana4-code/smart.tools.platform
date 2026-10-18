@@ -257,6 +257,19 @@ async function logout() {
   showLogin();
 }
 
+function syncAdminBranding() {
+  const brandName = state.businessSettings?.brandName || "Smart Tools Hub";
+
+  document.title = `Admin Dashboard | ${brandName}`;
+  document.querySelectorAll("[data-admin-brand]").forEach((node) => {
+    node.textContent = brandName;
+  });
+
+  setText("dashboardStatus", `Connected to ${brandName}`);
+  const adminBrand = document.querySelector("[data-admin-brand]");
+  if (adminBrand) adminBrand.textContent = brandName;
+}
+
 async function loadDashboard() {
   if (state.loading) return;
   state.loading = true;
@@ -311,8 +324,9 @@ async function loadDashboard() {
     renderLists();
     renderCharts();
     renderSystem();
+    syncAdminBranding();
 
-    setText("dashboardStatus", "Connected to Smart Tools Platform");
+    setText("dashboardStatus", `Connected to ${state.businessSettings?.brandName || "Smart Tools Hub"}`);
     setText("lastRefresh", new Date().toLocaleString());
     setText("apiStatus", "Connected");
     $("apiStatus")?.classList.remove("inactive");
