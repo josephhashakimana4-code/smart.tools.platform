@@ -1,0 +1,52 @@
+:root{color-scheme:light;--ink:#172033;--muted:#65718a;--line:#e5eaf3;--blue:#5368ee;--blue-deep:#394fdb;--surface:#fff;--page:#f4f6fb}
+*{box-sizing:border-box}
+body{min-height:100vh;margin:0;display:flex;flex-direction:column;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(ellipse at 12% 0%,rgba(83,104,238,.10),transparent 34rem),var(--page)}
+header{width:min(1120px,calc(100% - 40px));min-height:94px;margin:32px auto 0;padding:20px 28px;display:flex;align-items:center;gap:24px;border:1px solid rgba(229,234,243,.9);border-radius:22px;background:rgba(255,255,255,.88);box-shadow:0 12px 34px rgba(27,39,74,.06)}
+header h1{margin:0;font-size:clamp(1.45rem,2.8vw,2rem);line-height:1.2;letter-spacing:-.035em}
+.home-link{flex:0 0 auto;display:inline-flex;align-items:center;min-height:42px;padding:0 15px;border:1px solid var(--line);border-radius:12px;color:#3f50bd;background:#f8f9ff;font-size:.9rem;font-weight:650;text-decoration:none;transition:background .18s,border-color .18s,transform .18s}
+.home-link:hover{background:#eef0ff;border-color:#cbd1ff;transform:translateY(-1px)}
+.container{width:min(1120px,calc(100% - 40px));margin:0 auto;padding:28px 0 52px;flex:1 0 auto}
+.calculator,.container:has(.box)>.box{padding:clamp(20px,3vw,32px);border:1px solid var(--line);border-radius:24px;background:var(--surface);box-shadow:0 18px 48px rgba(27,39,74,.08)}
+#display{width:100%;height:82px;margin:0 0 18px;padding:16px 20px;border:1px solid #26324c;border-radius:16px;outline:none;color:#f7f8ff;background:linear-gradient(135deg,#202c46,#111a2d);font:600 clamp(1.8rem,4vw,2.4rem)/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-align:right;box-shadow:inset 0 2px 8px rgba(0,0,0,.18)}
+.buttons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.buttons button,.box button{min-height:58px;border:1px solid #e6eaf2;border-radius:15px;color:#25304a;background:#f7f8fc;font:inherit;font-size:1.1rem;font-weight:650;cursor:pointer;transition:transform .16s,background .16s,border-color .16s,box-shadow .16s}
+.buttons button:hover{transform:translateY(-2px);border-color:#cbd2ff;background:#eff1ff;box-shadow:0 6px 14px rgba(61,80,210,.1)}
+.buttons button:active,.box button:active{transform:translateY(0)}
+.buttons .equal,.box button{border-color:transparent;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-deep));box-shadow:0 9px 18px rgba(68,85,217,.2)}
+.buttons .equal{grid-column:1/-1;min-height:56px;font-size:1.15rem}
+.buttons .equal:hover,.box button:hover{filter:brightness(1.04);box-shadow:0 12px 22px rgba(68,85,217,.26);transform:translateY(-2px)}
+.sidebar{display:grid;gap:16px}
+.ad{min-height:84px;padding:18px;display:grid;place-items:center;border:1px dashed #cbd3e4;border-radius:18px;color:#8791a6;background:rgba(255,255,255,.55);font-size:.78rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.affiliate-card{display:block;padding:20px;border:1px solid #e3e7ff;border-radius:18px;color:#3447bc;background:linear-gradient(145deg,#f0f2ff,#fff);font-weight:700;line-height:1.45;text-decoration:none;box-shadow:0 10px 26px rgba(44,59,154,.06);transition:transform .18s,box-shadow .18s}
+.affiliate-card:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(44,59,154,.11)}
+.container:has(.box){display:grid;grid-template-columns:minmax(0,1.25fr) minmax(250px,.75fr);grid-template-rows:auto auto auto;align-content:start;gap:18px}
+.container:has(.box)>.ad:first-child{grid-column:1/-1;min-height:78px}
+.container:has(.box)>.box{grid-column:1;grid-row:2/span 2;align-self:stretch}
+.container:has(.box)>.ad:nth-of-type(2){grid-column:2;grid-row:2;min-height:150px}
+.container:has(.box)>.affiliate-card{grid-column:2;grid-row:3;align-self:start}
+#pdfFile{width:100%;min-height:72px;margin:0 0 18px;padding:18px;border:1px dashed #b9c3da;border-radius:16px;color:var(--muted);background:#f8f9fd;font:inherit}
+#pdfFile::file-selector-button{margin-right:14px;padding:10px 14px;border:1px solid #dce2f0;border-radius:10px;color:#34415e;background:#fff;font:inherit;font-weight:650;cursor:pointer}
+.box button{width:100%;min-height:56px;font-size:1rem}
+.status{margin-top:16px;color:var(--muted);line-height:1.5}
+.footer{padding:24px 20px 28px;border-top:1px solid var(--line);color:var(--muted);background:rgba(255,255,255,.68);text-align:center}
+.footer p{margin:0 0 12px;font-size:.88rem}
+.footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px}
+.footer-links a{color:#65718a;font-size:.84rem;text-decoration:none}
+.footer-links a:hover{color:var(--blue-deep);text-decoration:underline}
+:focus-visible{outline:3px solid rgba(83,104,238,.42);outline-offset:3px}
+@media(max-width:760px){header{width:min(100% - 28px,1120px);margin-top:14px;padding:16px;gap:14px;border-radius:18px}header h1{font-size:1.3rem}.home-link{min-height:38px;padding:0 11px;font-size:.82rem}.container{width:min(100% - 28px,1120px);padding:18px 0 36px}.container:not(:has(.box)){display:grid;gap:16px}.container:has(.box){grid-template-columns:1fr;gap:14px}.container:has(.box)>.ad:first-child,.container:has(.box)>.box,.container:has(.box)>.ad:nth-of-type(2),.container:has(.box)>.affiliate-card{grid-column:1;grid-row:auto}.container:has(.box)>.ad:first-child{min-height:64px}.container:has(.box)>.ad:nth-of-type(2){min-height:72px}}
+@media(max-width:420px){header{align-items:flex-start;flex-direction:column}.buttons{gap:8px}.buttons button{min-height:54px;border-radius:13px}#display{height:72px}}
+
+
+/* Consistent tool page layout and readable ad placements. */
+.tool-box, main:has(#pdfFile), main:has(.calculator-container) { max-width: 1120px; margin: clamp(1.5rem, 4vw, 3.5rem) auto; padding: clamp(1.25rem, 3vw, 2.5rem); border: 1px solid #dce4ef; border-radius: 18px; background: #fff; box-shadow: 0 18px 48px rgb(30 55 90 / 8%); }
+.tool-box h1, main:has(#pdfFile) h1, main:has(.calculator-container) h1 { color: #17243b; line-height: 1.15; letter-spacing: -.03em; }
+.tool-box p, main:has(#pdfFile) p, main:has(.calculator-container) p { color: #64748b; line-height: 1.65; }
+.tool-box input, .tool-box select, .tool-box textarea, main:has(#pdfFile) input, main:has(.calculator-container) input, main:has(.calculator-container) select { max-width: 100%; padding: .75rem .9rem; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
+.tool-box button, main:has(#pdfFile) button, main:has(.calculator-container) button { min-height: 44px; padding: .7rem 1.1rem; border: 0; border-radius: 10px; color: #fff; background: #315de8; font: inherit; font-weight: 700; cursor: pointer; }
+.tool-box button:hover, main:has(#pdfFile) button:hover, main:has(.calculator-container) button:hover { background: #2348bf; }
+.tool-box button:focus-visible, main:has(#pdfFile) button:focus-visible, main:has(.calculator-container) button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+.tool-sidebar, .related-tools-section { padding: 1.25rem; border: 1px solid #dce4ef; border-radius: 14px; background: #f4f7fb; }
+.ad, .ad-container, .ad-slot, .advertisement, [data-ad-slot], ins.adsbygoogle { box-sizing: border-box; display: block; width: 100%; min-height: 90px; margin: 1.5rem auto; padding: 1rem; overflow: hidden; border: 1px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; color: #64748b; text-align: center; }
+.format-note { margin: .85rem 0 1.25rem; padding: .85rem 1rem; border-left: 3px solid #315de8; border-radius: 0 10px 10px 0; background: #eff4ff; color: #34445f; font-size: .95rem; }
+@media (max-width: 640px) { .tool-box, main:has(#pdfFile), main:has(.calculator-container) { margin: 1rem .5rem; padding: 1rem; } .tool-box button, main:has(#pdfFile) button, main:has(.calculator-container) button { width: 100%; } }
