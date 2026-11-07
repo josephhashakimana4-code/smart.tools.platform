@@ -27,19 +27,26 @@ function isStripeConfigured() {
 }
 
 async function createStripeCheckout({ payment, plan, email }) {
+  const interval = plan.interval || "monthly";
+  if (!["monthly", "yearly", "one-time"].includes(interval)) {
+    throw new Error("This plan has an unsupported billing interval.");
+  }
+  const recurring = interval !== "one-time";
   const form = new URLSearchParams({
-    mode: "subscription",
+    mode: recurring ? "subscription" : "payment",
     customer_email: email,
     success_url: `${process.env.APP_BASE_URL}/pricing.html?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.APP_BASE_URL}/pricing.html?checkout=cancelled`,
     "line_items[0][price_data][currency]": String(plan.currency || "USD").toLowerCase(),
     "line_items[0][price_data][product_data][name]": `${plan.name} — Smart Tools Hub`,
     "line_items[0][price_data][unit_amount]": String(Math.round(Number(plan.price) * 100)),
-    "line_items[0][price_data][recurring][interval]": "month",
     "line_items[0][quantity]": "1",
     "metadata[paymentId]": String(payment._id),
     "metadata[planSlug]": plan.slug
   });
+  if (recurring) {
+    form.set("line_items[0][price_data][recurring][interval]", interval === "yearly" ? "year" : "month");
+  }
   const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
     headers: {
@@ -211,6 +218,9 @@ router.post("/checkout-interest", async (req, res) => {
     const plan = await Plan.findOne({ slug: slugify(req.body.planSlug), active: true });
     if (!plan) return res.status(404).json({ message: "Plan not found." });
     if (plan.price <= 0) return res.status(400).json({ message: "The Free plan does not require checkout." });
+    if (!["monthly", "yearly", "one-time"].includes(plan.interval || "monthly")) {
+      return res.status(400).json({ message: "This plan has an unsupported billing interval." });
+    }
     if (req.body.gateway !== "stripe") return res.status(400).json({ message: "Stripe is the supported production checkout gateway." });
     if (!isStripeConfigured()) return res.status(503).json({ message: "Stripe checkout is not configured." });
 
@@ -245,18 +255,7 @@ router.post("/checkout-interest", async (req, res) => {
 router.post("/api-subscriptions", async (req, res) => {
   try {
     if (!isDbReady()) {
-      const email = String(req.body.email || "").trim().toLowerCase();
-      return res.status(201).json({
-        success: true,
-        subscription: {
-          ownerName: String(req.body.name || "").trim(),
-          ownerEmail: email,
-          planSlug: slugify(req.body.planSlug || "free"),
-          dailyLimit: 100,
-          apiKey: makeApiKey(),
-          status: "active"
-        }
-      });
+      return res.status(503).json({ message: "API subscriptions are unavailable until the database is connected." });
     }
 
     const email = String(req.body.email || "").trim().toLowerCase();
@@ -305,7 +304,7 @@ router.get("/checkout-result", async (req, res) => {
 router.post("/referrals", async (req, res) => {
   try {
     if (!isDbReady()) {
-      return res.status(201).json({ success: true, referral: { referrerEmail: String(req.body.referrerEmail || "").trim().toLowerCase(), invitedEmail: String(req.body.invitedEmail || "").trim().toLowerCase() } });
+      return res.status(503).json({ message: "Referrals cannot be saved until the database is connected." });
     }
 
     const referrerEmail = String(req.body.referrerEmail || "").trim().toLowerCase();
@@ -322,7 +321,7 @@ router.post("/referrals", async (req, res) => {
 router.post("/advertise", async (req, res) => {
   try {
     if (!isDbReady()) {
-      return res.status(201).json({ success: true, lead: { company: String(req.body.company || "").trim(), name: String(req.body.name || "").trim(), email: String(req.body.email || "").trim().toLowerCase(), placement: String(req.body.placement || "").trim(), budget: Number(req.body.budget || 0), message: String(req.body.message || "").trim() } });
+      return res.status(503).json({ message: "Requests cannot be saved until the database is connected." });
     }
 
     const email = String(req.body.email || "").trim().toLowerCase();

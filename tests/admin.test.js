@@ -13,6 +13,7 @@ const Payment = require("../models/Payment");
 const ApiSubscription = require("../models/ApiSubscription");
 const Affiliate = require("../models/Affiliate");
 const BusinessSettings = require("../models/BusinessSettings");
+const DirectAdLead = require("../models/DirectAdLead");
 const adminRouter = require("../routes/admin");
 
 const app = express();
@@ -58,6 +59,9 @@ describe("Admin routes without a database", () => {
     const stats = await adminRequest("get", "/stats").expect(200);
     expect(stats.body.totalTools).toBeGreaterThan(0);
     expect(stats.body).toHaveProperty("unreadContacts");
+    expect(stats.body.storageMode).toBe("memory");
+    await adminRequest("post", "/payments/payment-id/cancel", {}).expect(503);
+    await adminRequest("post", "/payments/payment-id/refund", {}).expect(503);
   });
 
   test("serves fallback settings, revenue, and export data", async () => {
@@ -77,6 +81,7 @@ describe("Admin routes without a database", () => {
 
     await adminRequest("get", "/subscribers").expect(200);
     await adminRequest("get", "/contacts").expect(200);
+    await adminRequest("get", "/direct-ad-leads").expect(200, []);
   });
 
   test("supports fallback CRUD for dashboard-managed resources", async () => {
@@ -122,6 +127,7 @@ describe("Admin routes without a database", () => {
 
     const response = await adminRequest("get", "/stats").expect(200);
     expect(response.body).toMatchObject({
+      storageMode: "database",
       totalTools: 4,
       activeTools: 3,
       inactiveTools: 1,
@@ -180,6 +186,11 @@ describe("Admin routes without a database", () => {
     await adminRequest("put", "/contacts/contact-id", { status: "read" }).expect(200);
     await adminRequest("put", "/contacts/missing-record", { status: "read" }).expect(404);
     await adminRequest("delete", "/contacts/contact-id").expect(200);
+
+    const leads = [{ _id: "lead-id", email: "sales@example.com" }];
+    jest.spyOn(DirectAdLead, "find").mockReturnValue({ sort: jest.fn().mockResolvedValue(leads) });
+    const leadResponse = await adminRequest("get", "/direct-ad-leads").expect(200);
+    expect(leadResponse.body).toEqual(leads);
 
     jest.spyOn(BusinessSettings, "findOneAndUpdate").mockResolvedValue({ key: "default", brandName: "Connected" });
     await adminRequest("get", "/business-settings").expect(200);

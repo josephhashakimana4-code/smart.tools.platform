@@ -203,6 +203,7 @@ router.get("/stats", async (req, res) => {
         inactiveTools: tools.filter((tool) => tool.status !== "active").length,
         categories: [...new Set(tools.map((tool) => tool.category).filter(Boolean))].map((category) => ({ _id: category, count: tools.filter((tool) => tool.category === category).length })),
         downloads: {},
+        storageMode: "memory",
         views: tools.reduce((sum, tool) => sum + Number(tool.views || 0), 0),
         affiliateClicks: tools.reduce((sum, tool) => sum + Number(tool.affiliateClicks || 0), 0),
         visitorsToday: 0,
@@ -262,6 +263,7 @@ router.get("/stats", async (req, res) => {
     const m = metrics[0] || { views: 0, clicks: 0 };
 
     res.json({
+      storageMode: "database",
       totalTools,
       activeTools,
       inactiveTools,
@@ -538,6 +540,12 @@ router.get("/contacts", async (req, res) => {
   res.json(contacts);
 });
 
+router.get("/direct-ad-leads", async (req, res) => {
+  if (!isDbReady()) return res.json([]);
+  const leads = await DirectAdLead.find().sort({ createdAt: -1 });
+  res.json(leads);
+});
+
 router.put("/contacts/:id", async (req, res) => {
   if (!isDbReady()) {
     const index = memoryState.contacts.findIndex((contact) => contact._id === req.params.id);
@@ -744,6 +752,7 @@ router.get("/payments/export", async (req, res) => {
 });
 
 router.post("/payments/:id/cancel", async (req, res) => {
+  if (!isDbReady()) return res.status(503).json({ message: "Payment cancellation requires a connected database." });
   const payment = await Payment.findById(req.params.id);
   if (!payment) return res.status(404).json({ message: "Payment not found." });
   if (payment.providerSubscriptionId) await stripeRequest(`subscriptions/${payment.providerSubscriptionId}`, { cancel_at_period_end: "true" });
@@ -754,6 +763,7 @@ router.post("/payments/:id/cancel", async (req, res) => {
 });
 
 router.post("/payments/:id/refund", async (req, res) => {
+  if (!isDbReady()) return res.status(503).json({ message: "Refunds require a connected database and a refundable Stripe payment." });
   const payment = await Payment.findById(req.params.id);
   if (!payment) return res.status(404).json({ message: "Payment not found." });
   if (!payment.providerPaymentIntentId) return res.status(409).json({ message: "No refundable Stripe payment intent is available yet." });

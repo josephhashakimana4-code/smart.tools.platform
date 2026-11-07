@@ -47,33 +47,24 @@ describe("Business routes without a database", () => {
       .expect(503);
   });
 
-  test("creates fallback API subscriptions, referrals, and advertising leads", async () => {
+  test("does not claim API subscriptions, referrals, or advertising requests were saved while disconnected", async () => {
     const subscriptionResponse = await request(app)
       .post("/api/business/api-subscriptions")
       .send({ name: " API Customer ", email: "CUSTOMER@example.com", planSlug: "API Business" })
-      .expect(201);
-    expect(subscriptionResponse.body.subscription.ownerName).toBe("API Customer");
-    expect(subscriptionResponse.body.subscription.ownerEmail).toBe("customer@example.com");
-    expect(subscriptionResponse.body.subscription.apiKey).toMatch(/^sth_[a-f0-9]{36}$/);
+      .expect(503);
+    expect(subscriptionResponse.body).not.toHaveProperty("subscription.apiKey");
 
     const referralResponse = await request(app)
       .post("/api/business/referrals")
       .send({ referrerEmail: " REFERRER@example.com ", invitedEmail: " INVITED@example.com " })
-      .expect(201);
-    expect(referralResponse.body.referral).toEqual({
-      referrerEmail: "referrer@example.com",
-      invitedEmail: "invited@example.com"
-    });
+      .expect(503);
+    expect(referralResponse.body.message).toMatch(/database is connected/i);
 
     const leadResponse = await request(app)
       .post("/api/business/advertise")
       .send({ company: " Example Co ", email: " SALES@example.com ", budget: "250" })
-      .expect(201);
-    expect(leadResponse.body.lead).toMatchObject({
-      company: "Example Co",
-      email: "sales@example.com",
-      budget: 250
-    });
+      .expect(503);
+    expect(leadResponse.body.message).toMatch(/database is connected/i);
   });
 
   test("validates and calculates BMI through the fallback API", async () => {
@@ -123,7 +114,7 @@ describe("Business routes without a database", () => {
       .send({ planSlug: "free", gateway: "stripe", email: "customer@example.com" })
       .expect(400);
 
-    findPlan.mockResolvedValue({ slug: "pro", price: 9, currency: "USD" });
+    findPlan.mockResolvedValue({ slug: "pro", price: 9, currency: "USD", interval: "yearly" });
     await request(app)
       .post("/api/business/checkout-interest")
       .send({ planSlug: "pro", gateway: "paypal", email: "customer@example.com" })
@@ -143,7 +134,7 @@ describe("Business routes without a database", () => {
 
     const payment = { _id: "payment-test", save: jest.fn().mockResolvedValue(undefined) };
     jest.spyOn(Payment, "create").mockResolvedValue(payment);
-    jest.spyOn(global, "fetch").mockResolvedValue({
+    const stripeFetch = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ id: "session-test", url: "https://checkout.example.test" })
     });
@@ -154,6 +145,18 @@ describe("Business routes without a database", () => {
       .expect(201);
     expect(checkout.body.checkoutUrl).toBe("https://checkout.example.test");
     expect(payment.reference).toBe("session-test");
+    const yearlyCheckout = new URLSearchParams(stripeFetch.mock.calls[0][1].body);
+    expect(yearlyCheckout.get("mode")).toBe("subscription");
+    expect(yearlyCheckout.get("line_items[0][price_data][recurring][interval]")).toBe("year");
+
+    findPlan.mockResolvedValue({ slug: "single", price: 15, currency: "USD", interval: "one-time" });
+    await request(app)
+      .post("/api/business/checkout-interest")
+      .send({ planSlug: "single", gateway: "stripe", email: "customer@example.com" })
+      .expect(201);
+    const oneTimeCheckout = new URLSearchParams(stripeFetch.mock.calls[1][1].body);
+    expect(oneTimeCheckout.get("mode")).toBe("payment");
+    expect(oneTimeCheckout.has("line_items[0][price_data][recurring][interval]")).toBe(false);
   });
 
   test("validates connected API subscriptions, referrals, and ad leads", async () => {
