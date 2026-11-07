@@ -1,0 +1,199 @@
+:root {
+  --brand-ink: #14213d;
+  --brand-muted: #637184;
+  --brand-accent: #ff6b35;
+  --brand-accent-deep: #df5120;
+  --brand-surface: #ffffff;
+  --brand-line: rgba(20, 33, 61, 0.12);
+  --brand-shadow: 0 22px 60px rgba(20, 33, 61, 0.16);
+}
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(4rem, 9vw, 8rem) 1.5rem;
+  color: #fff;
+  background: radial-gradient(circle at 82% 16%, rgba(255, 255, 255, 0.17), transparent 23rem), linear-gradient(125deg, #14213d 0%, #155e75 58%, #ff6b35 145%);
+}
+
+.hero::before,
+.hero::after {
+  position: absolute;
+  z-index: -1;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+}
+
+.hero::before {
+  top: -12rem;
+  right: -7rem;
+  width: 33rem;
+  aspect-ratio: 1;
+}
+
+.hero::after {
+  right: 8%;
+  bottom: -18rem;
+  width: 28rem;
+  aspect-ratio: 1;
+}
+
+.hero-inner {
+  width: min(1120px, 100%);
+  margin-inline: auto;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.27);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.11);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(12px);
+}
+
+.hero h1 {
+  max-width: 16ch;
+  margin: 1.35rem 0 1rem;
+  color: #fff;
+  font-size: clamp(2.6rem, 6vw, 5.2rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+.hero p {
+  max-width: 64ch;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: clamp(1.05rem, 1.8vw, 1.22rem);
+  line-height: 1.75;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 2rem;
+}
+
+.hero-actions a {
+  min-height: 3.15rem;
+  padding: 0.9rem 1.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.hero-actions a:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.hero-actions a:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
+
+.hero-actions .hero-primary {
+  border-color: #fff;
+  background: #fff;
+  color: var(--brand-ink);
+}
+
+.hero-actions .hero-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  backdrop-filter: blur(10px);
+}
+
+@media (max-width: 640px) {
+  .hero { padding: 4rem 1.2rem; }
+  .hero h1 { max-width: 13ch; }
+  .hero-actions { align-items: stretch; flex-direction: column; }
+  .hero-actions a { text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-actions a { transition: none; }
+  .hero-actions a:hover { transform: none; }
+}
+
+.seo-faq {
+  padding: clamp(3rem, 7vw, 5.5rem) 1.5rem;
+  background: linear-gradient(180deg, #f5f8fc 0%, #fff 100%);
+}
+
+.seo-faq-inner {
+  width: min(940px, 100%);
+  margin-inline: auto;
+}
+
+.seo-faq-eyebrow {
+  margin: 0 0 0.75rem;
+  color: var(--brand-accent-deep);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.seo-faq h2 {
+  max-width: 22ch;
+  margin: 0;
+  color: var(--brand-ink);
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.seo-faq-intro {
+  max-width: 70ch;
+  margin: 1rem 0 2rem;
+  color: var(--brand-muted);
+  font-size: 1.05rem;
+  line-height: 1.75;
+}
+
+.seo-faq-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.seo-faq details {
+  padding: 1.15rem 1.35rem;
+  border: 1px solid var(--brand-line);
+  border-radius: 1rem;
+  background: var(--brand-surface);
+  box-shadow: 0 8px 26px rgba(20, 33, 61, 0.045);
+}
+
+.seo-faq summary {
+  color: var(--brand-ink);
+  cursor: pointer;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.seo-faq details[open] {
+  border-color: rgba(255, 107, 53, 0.38);
+  box-shadow: 0 14px 34px rgba(20, 33, 61, 0.08);
+}
+
+.seo-faq details p {
+  margin: 0.8rem 0 0;
+  color: var(--brand-muted);
+  line-height: 1.7;
+}
