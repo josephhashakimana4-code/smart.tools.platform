@@ -46,6 +46,10 @@ const { writeFileSync, unlinkSync } = require("fs");
 const { spawnSync } = require("child_process");
 
 async function scanBufferForVirus(buffer) {
+  const scannerEnabled = [process.env.CLAMAV_ENABLED, process.env.CLAMAV_REQUIRED].some((value) => ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase()));
+  if (!scannerEnabled) {
+    return { ok: true, status: "skipped", info: "ClamAV scanning is disabled for this instance" };
+  }
   const fsPromises = require("fs").promises;
   const crypto = require("crypto");
   const { execFile } = require("child_process");
