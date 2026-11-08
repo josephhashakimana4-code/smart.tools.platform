@@ -233,6 +233,7 @@ textarea:focus {
 
 .message.error { color: #b91c1c; }
 .message.success { color: #166534; }
+.message.warning { color: #92400e; }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }

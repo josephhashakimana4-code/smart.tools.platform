@@ -21,22 +21,63 @@ async function smartLoadAds(position, containerSelector) {
 
   try {
     const res = await fetch(`${SMART_ANALYTICS_BASE}/api/analytics/ads?position=${encodeURIComponent(position)}`);
+    if (!res.ok) throw new Error(`Ads request failed (${res.status}).`);
     const ads = await res.json();
     if (!ads.length) return;
 
     const ad = ads[0];
-    container.innerHTML = `
-      <a class="managed-ad" href="${ad.url || "#"}" target="_blank" rel="sponsored nofollow noopener" data-ad-id="${ad._id}">
-        ${ad.image ? `<img src="${ad.image}" alt="${ad.title}">` : `<span class="ad-mark">PT</span>`}
-        <span class="ad-copy">
-          <strong>${ad.title}</strong>
-          ${ad.subtitle ? `<small>${ad.subtitle}</small>` : ""}
-          ${ad.location ? `<small>${ad.location}</small>` : ""}
-        </span>
-        <em>${ad.cta || "Learn more"}</em>
-      </a>
-    `;
-    container.querySelector("a")?.addEventListener("click", () => {
+    let destination;
+    try {
+      destination = new URL(ad.url, window.location.origin);
+      if (!["http:", "https:"].includes(destination.protocol)) destination = null;
+    } catch {
+      destination = null;
+    }
+
+    const card = document.createElement(destination ? "a" : "div");
+    card.className = "managed-ad";
+    if (destination) {
+      card.href = destination.href;
+      card.target = "_blank";
+      card.rel = "sponsored nofollow noopener";
+      card.dataset.adId = ad._id;
+    }
+
+    if (ad.image) {
+      const image = document.createElement("img");
+      image.src = ad.image;
+      image.alt = ad.title || "Sponsored placement";
+      card.appendChild(image);
+    } else {
+      const mark = document.createElement("span");
+      mark.className = "ad-mark";
+      mark.textContent = "PT";
+      card.appendChild(mark);
+    }
+
+    const copy = document.createElement("span");
+    copy.className = "ad-copy";
+    const title = document.createElement("strong");
+    title.textContent = ad.title || "Sponsored placement";
+    copy.appendChild(title);
+    [ad.subtitle, ad.location].filter(Boolean).forEach((value) => {
+      const detail = document.createElement("small");
+      detail.textContent = value;
+      copy.appendChild(detail);
+    });
+    card.appendChild(copy);
+
+    const cta = document.createElement("em");
+    cta.textContent = ad.cta || "Learn more";
+    card.appendChild(cta);
+    if (!destination) {
+      const status = document.createElement("small");
+      status.textContent = "This placement is not linked yet.";
+      card.appendChild(status);
+    }
+    container.replaceChildren(card);
+
+    if (destination) card.addEventListener("click", () => {
       apiFetch(`${SMART_ANALYTICS_BASE}/api/analytics/ads/${ad._id}/click`, {
         method: "POST",
         keepalive: true

@@ -51,6 +51,7 @@
           <a class="back-link" href="/index.html">Back to Home</a>
           <h1>Admin Dashboard</h1>
           <p id="dashboardStatus">Connected to Smart Tools Platform</p>
+          <p id="adminActionMessage" class="message" role="status" aria-live="polite"></p>
         </div>
         <div class="header-actions">
           <a class="secondary-btn as-link" href="/api-marketplace.html" target="_blank" rel="noopener">API</a>
@@ -96,6 +97,22 @@
               <div id="topAffiliateList" class="rank-list"></div>
             </article>
           </div>
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Direct Ad Sales Leads</h2>
+                <p>Advertising, AI access, and white-label requests submitted from public pages</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Company</th><th>Contact</th><th>Placement</th><th>Budget</th><th>Status</th><th>Campaign details</th><th>Received</th></tr>
+                </thead>
+                <tbody id="directAdLeadTable"></tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <section id="toolsSection" class="admin-section">
@@ -246,7 +263,7 @@
                     <input id="affiliateBaseUrl" type="url" required />
                   </label>
                   <label class="wide">Affiliate URL
-                    <input id="affiliateUrl" type="url" />
+                    <input id="affiliatePartnerUrl" type="url" />
                   </label>
                   <label>Network
                     <input id="affiliateNetwork" />
@@ -324,7 +341,7 @@
             </article>
           </div>
           <article class="panel">
-            <div class="panel-header"><div><h2>Revenue overview</h2><p>Confirmed revenue and subscription health</p></div><a class="small-btn secondary-btn" href="/api/admin/payments/export">Export transactions</a></div>
+            <div class="panel-header"><div><h2>Revenue overview</h2><p>Confirmed revenue and subscription health</p></div><button id="exportPaymentsBtn" class="small-btn secondary-btn" type="button">Export transactions</button></div>
             <div class="stats-grid compact-stats">
               <article class="stat-card"><span>Total revenue</span><strong id="totalRevenue">0</strong></article>
               <article class="stat-card"><span>This month</span><strong id="monthlyRevenue">0</strong></article>

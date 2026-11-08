@@ -19,6 +19,7 @@ const state = {
   blogPosts: [],
   subscribers: [],
   contacts: [],
+  directAdLeads: [],
   plans: [],
   payments: [],
   revenue: {},
@@ -43,6 +44,7 @@ const els = {
   dashboardStatus: $("dashboardStatus"),
   logoutBtn: $("logoutBtn"),
   refreshAllBtn: $("refreshAllBtn"),
+  exportPaymentsBtn: $("exportPaymentsBtn"),
   menuButtons: document.querySelectorAll(".menu-btn"),
   sections: document.querySelectorAll(".admin-section"),
   toolsTable: $("toolsTable"),
@@ -65,6 +67,7 @@ const els = {
   blogPostTable: $("blogPostTable"),
   subscriberTable: $("subscriberTable"),
   contactTable: $("contactTable"),
+  directAdLeadTable: $("directAdLeadTable"),
   planForm: $("planForm"),
   planTable: $("planTable"),
   paymentTable: $("paymentTable"),
@@ -178,6 +181,37 @@ return this.request(path, {
 method: "DELETE"
 });
 }
+
+async download(path, filename) {
+const res = await (typeof window.apiFetch === "function" ? window.apiFetch : fetch)(
+  `${this.baseUrl}${path}`,
+  {
+    credentials: "same-origin",
+    headers: await this.headers("GET")
+  }
+);
+
+if (res.status === 401) {
+this.clearToken();
+showLogin();
+const data = await res.json().catch(() => ({}));
+throw new Error(data.message || "Admin login required.");
+}
+
+if (!res.ok) {
+const data = await res.json().catch(() => ({}));
+throw new Error(data.message || `Request failed: ${res.status}`);
+}
+
+const objectUrl = URL.createObjectURL(await res.blob());
+const link = document.createElement("a");
+link.href = objectUrl;
+link.download = filename;
+document.body.appendChild(link);
+link.click();
+link.remove();
+window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
 }
 const api = new ApiClient(API_BASE);
 
@@ -205,10 +239,17 @@ function setText(id, value) {
 }
 
 function setMessage(message, isError = false) {
-  if (!els.message) return;
-  els.message.textContent = message;
-  els.message.classList.toggle("error", isError);
-  els.message.classList.toggle("success", !isError && Boolean(message));
+  const temporary = Boolean(message) && !isError && state.stats.storageMode === "memory";
+  const displayedMessage = temporary
+    ? `${message} Database storage is unavailable; this change is temporary and will not persist.`
+    : message;
+
+  [els.message, $("adminActionMessage")].filter(Boolean).forEach((element) => {
+    element.textContent = displayedMessage;
+    element.classList.toggle("error", isError);
+    element.classList.toggle("success", !isError && Boolean(message) && !temporary);
+    element.classList.toggle("warning", temporary);
+  });
 }
 
 function showAdmin() {
@@ -276,7 +317,7 @@ async function loadDashboard() {
   setText("dashboardStatus", "Refreshing live data...");
 
   try {
-    const [stats, tools, ads, affiliates, businessSettings, blogPosts, subscribers, contacts, plans, payments, apiSubscriptions, revenue] = await Promise.all([
+    const [stats, tools, ads, affiliates, businessSettings, blogPosts, subscribers, contacts, directAdLeads, plans, payments, apiSubscriptions, revenue] = await Promise.all([
       api.get("/api/admin/stats"),
       api.get("/api/admin/tools"),
       api.get("/api/admin/ads"),
@@ -285,6 +326,7 @@ async function loadDashboard() {
       api.get("/api/admin/blog-posts"),
       api.get("/api/admin/subscribers"),
       api.get("/api/admin/contacts"),
+      api.get("/api/admin/direct-ad-leads"),
       api.get("/api/admin/plans"),
       api.get("/api/admin/payments"),
       api.get("/api/admin/api-subscriptions"),
@@ -299,6 +341,7 @@ async function loadDashboard() {
     state.blogPosts = Array.isArray(blogPosts) ? blogPosts : [];
     state.subscribers = Array.isArray(subscribers) ? subscribers : [];
     state.contacts = Array.isArray(contacts) ? contacts : [];
+    state.directAdLeads = Array.isArray(directAdLeads) ? directAdLeads : [];
     state.plans = Array.isArray(plans) ? plans : [];
     state.payments = Array.isArray(payments) ? payments : [];
     state.apiSubscriptions = Array.isArray(apiSubscriptions) ? apiSubscriptions : [];
@@ -318,6 +361,7 @@ async function loadDashboard() {
     renderBlogPosts();
     renderSubscribers();
     renderContacts();
+    renderDirectAdLeads();
     renderPlans();
     renderPayments();
     renderApiSubscriptions();
@@ -326,10 +370,16 @@ async function loadDashboard() {
     renderSystem();
     syncAdminBranding();
 
-    setText("dashboardStatus", `Connected to ${state.businessSettings?.brandName || "Smart Tools Hub"}`);
+    const temporaryStorage = state.stats.storageMode === "memory";
+    setText(
+      "dashboardStatus",
+      temporaryStorage
+        ? `Connected to ${state.businessSettings?.brandName || "Smart Tools Hub"} — database unavailable; changes are temporary`
+        : `Connected to ${state.businessSettings?.brandName || "Smart Tools Hub"}`
+    );
     setText("lastRefresh", new Date().toLocaleString());
-    setText("apiStatus", "Connected");
-    $("apiStatus")?.classList.remove("inactive");
+    setText("apiStatus", temporaryStorage ? "Temporary memory only" : "Connected");
+    $("apiStatus")?.classList.toggle("inactive", temporaryStorage);
   } catch (err) {
     setText("dashboardStatus", err.message);
     setText("apiStatus", "Needs login");
@@ -392,6 +442,26 @@ function renderSimpleList(containerId, rows, emptyText) {
       </div>
       <div class="rank-metrics">${escapeHtml(row.value)}</div>
     </div>
+  `).join("");
+}
+
+function renderDirectAdLeads() {
+  if (!els.directAdLeadTable) return;
+  if (!state.directAdLeads.length) {
+    els.directAdLeadTable.innerHTML = '<tr><td colspan="7" class="empty-state">No direct ad sales leads yet.</td></tr>';
+    return;
+  }
+
+  els.directAdLeadTable.innerHTML = state.directAdLeads.map((lead) => `
+    <tr>
+      <td>${escapeHtml(lead.company || "-")}</td>
+      <td>${escapeHtml(lead.name || "-")}<br><a href="mailto:${escapeHtml(lead.email || "")}">${escapeHtml(lead.email || "-")}</a></td>
+      <td>${escapeHtml(lead.placement || "-")}</td>
+      <td>${lead.budget == null ? "-" : number(lead.budget)}</td>
+      <td>${escapeHtml(lead.status || "new")}</td>
+      <td>${escapeHtml(lead.message || "-")}</td>
+      <td>${lead.createdAt ? escapeHtml(new Date(lead.createdAt).toLocaleString()) : "-"}</td>
+    </tr>
   `).join("");
 }
 
@@ -539,14 +609,15 @@ async function saveTool(event) {
       setMessage("Name, slug, and category are required.", true);
       return;
     }
-    if (state.editingToolId) {
+    const editing = Boolean(state.editingToolId);
+    if (editing) {
       await api.put(`/api/admin/tools/${encodeURIComponent(state.editingToolId)}`, data);
     } else {
       await api.post("/api/admin/tools", data);
     }
     resetToolForm();
-    setMessage(state.editingToolId ? "Tool updated." : "Tool saved.");
     await loadDashboard();
+    setMessage(editing ? "Tool updated." : "Tool saved.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -568,6 +639,7 @@ async function deleteTool(button) {
   try {
     await api.delete(`/api/admin/tools/${encodeURIComponent(id)}`);
     await loadDashboard();
+    setMessage("Tool deleted.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -599,7 +671,7 @@ function affiliateFormData() {
     key: text($("affiliateKey")?.value),
     name: text($("affiliateName")?.value),
     base_url: text($("affiliateBaseUrl")?.value),
-    affiliate_url: text($("affiliateUrl")?.value),
+    affiliate_url: text($("affiliatePartnerUrl")?.value),
     network: text($("affiliateNetwork")?.value),
     active: $("affiliateActive")?.value === "true"
   };
@@ -1001,6 +1073,7 @@ async function deletePlan(button) {
   try {
     await api.delete(`/api/admin/plans/${encodeURIComponent(id)}`);
     await loadDashboard();
+    setMessage("Plan deleted.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1012,6 +1085,7 @@ async function cancelPayment(button) {
   try {
     await api.post(`/api/admin/payments/${encodeURIComponent(id)}/cancel`, {});
     await loadDashboard();
+    setMessage("Payment cancellation requested.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1023,6 +1097,7 @@ async function refundPayment(button) {
   try {
     await api.post(`/api/admin/payments/${encodeURIComponent(id)}/refund`, {});
     await loadDashboard();
+    setMessage("Refund processed.");
   } catch (err) { setMessage(err.message, true); }
 }
 
@@ -1032,6 +1107,7 @@ async function deleteApiSubscription(button) {
   try {
     await api.delete(`/api/admin/api-subscriptions/${encodeURIComponent(id)}`);
     await loadDashboard();
+    setMessage("API subscription deleted.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1043,6 +1119,7 @@ async function deleteAffiliate(button) {
   try {
     await api.delete(`/api/admin/affiliates/${encodeURIComponent(id)}`);
     await loadDashboard();
+    setMessage("Affiliate deleted.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1054,6 +1131,7 @@ async function deleteAd(button) {
   try {
     await api.delete(`/api/admin/ads/${encodeURIComponent(id)}`);
     await loadDashboard();
+    setMessage("Ad deleted.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1065,6 +1143,7 @@ async function deleteBlogPost(button) {
   try {
     await api.delete(`/api/admin/blog-posts/${encodeURIComponent(id)}`);
     await loadDashboard();
+    setMessage("Blog post deleted.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1076,6 +1155,7 @@ async function deleteSubscriber(button) {
   try {
     await api.delete(`/api/admin/subscribers/${encodeURIComponent(id)}`);
     await loadDashboard();
+    setMessage("Subscriber deleted.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1087,6 +1167,7 @@ async function markContactRead(button) {
   try {
     await api.put(`/api/admin/contacts/${encodeURIComponent(id)}`, { status: "read" });
     await loadDashboard();
+    setMessage("Contact marked as read.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1098,6 +1179,16 @@ async function deleteContact(button) {
   try {
     await api.delete(`/api/admin/contacts/${encodeURIComponent(id)}`);
     await loadDashboard();
+    setMessage("Contact deleted.");
+  } catch (err) {
+    setMessage(err.message, true);
+  }
+}
+
+async function exportPayments() {
+  try {
+    await api.download("/api/admin/payments/export", "transactions.csv");
+    setMessage("Transactions exported.");
   } catch (err) {
     setMessage(err.message, true);
   }
@@ -1128,7 +1219,7 @@ document.addEventListener("click", (event) => {
       $("affiliateKey") && ($("affiliateKey").value = affiliate.key || "");
       $("affiliateName") && ($("affiliateName").value = affiliate.name || "");
       $("affiliateBaseUrl") && ($("affiliateBaseUrl").value = affiliate.base_url || "");
-      $("affiliateUrl") && ($("affiliateUrl").value = affiliate.affiliate_url || "");
+      $("affiliatePartnerUrl") && ($("affiliatePartnerUrl").value = affiliate.affiliate_url || "");
       $("affiliateNetwork") && ($("affiliateNetwork").value = affiliate.network || "");
       $("affiliateActive") && ($("affiliateActive").value = affiliate.active === false ? "false" : "true");
       showSection("monetization");
@@ -1269,6 +1360,7 @@ document.addEventListener("click", (event) => {
 els.loginForm?.addEventListener("submit", login);
 els.logoutBtn?.addEventListener("click", logout);
 els.refreshAllBtn?.addEventListener("click", loadDashboard);
+els.exportPaymentsBtn?.addEventListener("click", exportPayments);
 els.toolForm?.addEventListener("submit", saveTool);
 els.resetBtn?.addEventListener("click", resetToolForm);
 els.newToolBtn?.addEventListener("click", () => {

@@ -179,6 +179,11 @@ async function handleNewsletter(event) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || "Unable to subscribe.");
+    if (data.stored === false) {
+      message.textContent = "Newsletter signup is unavailable because subscriber storage is not connected. Please try again later.";
+      return;
+    }
+    if (!data.success) throw new Error("Unable to save your subscription. Please try again.");
     message.textContent = "Subscribed successfully.";
     event.target.reset();
   } catch (err) {
