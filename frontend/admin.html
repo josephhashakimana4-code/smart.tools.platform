@@ -341,13 +341,14 @@
             </article>
           </div>
           <article class="panel">
-            <div class="panel-header"><div><h2>Revenue overview</h2><p>Confirmed revenue and subscription health</p></div><button id="exportPaymentsBtn" class="small-btn secondary-btn" type="button">Export transactions</button></div>
+            <div class="panel-header"><div><h2>Revenue overview</h2><p>Website sales and external provider payouts are tracked separately</p></div><button id="exportPaymentsBtn" class="small-btn secondary-btn" type="button">Export transactions</button></div>
             <div class="stats-grid compact-stats">
-              <article class="stat-card"><span>Total revenue</span><strong id="totalRevenue">0</strong></article>
-              <article class="stat-card"><span>This month</span><strong id="monthlyRevenue">0</strong></article>
+              <article class="stat-card"><span>Website checkout collected</span><strong id="websiteRevenueTotals">No payments</strong><small>By currency, verified by checkout provider</small></article>
+              <article class="stat-card"><span>External payouts recorded</span><strong id="externalPayoutTotals">No payouts</strong><small>Manual records; not synced to providers</small></article>
               <article class="stat-card"><span>Paid subscribers</span><strong id="paidSubscribers">0</strong></article>
               <article class="stat-card"><span>Failed / refunds</span><strong id="paymentExceptions">0 / 0</strong></article>
             </div>
+            <p class="form-help">PayPal/Stripe/Flutterwave checkout records are payments to the merchant account connected by the server credentials. The dashboard cannot verify who owns that merchant account. Ad networks and affiliate programs pay to the payout details saved in each provider account.</p>
           </article>
 
           <article class="panel">
@@ -380,6 +381,9 @@
                 </label>
                 <label>Currency
                   <input id="planCurrency" value="USD" />
+                </label>
+                <label>Rwanda MoMo one-time price (RWF)
+                  <input id="planMomoPriceRwf" type="number" min="0" step="1" placeholder="Optional; required for MoMo" />
                 </label>
                 <label>Interval
                   <select id="planInterval">
@@ -427,10 +431,36 @@
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Customer</th><th>Plan</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+                  <tr><th>Customer</th><th>Plan</th><th>Amount</th><th>Channel</th><th>Status</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="paymentTable"></tbody>
               </table>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div><h2>External payout ledger</h2><p>Record money reported by an ad network, affiliate, or direct sponsor</p></div>
+            </div>
+            <p class="form-help">Records here are entered by you and are not provider-confirmed. A payout marked received is a manual dashboard status. The provider must send the money to the payout destination configured in that provider account.</p>
+            <form id="externalPayoutForm" class="form-panel">
+              <div class="form-grid">
+                <label>Income source
+                  <select id="payoutSource"><option value="advertising">Ad provider</option><option value="affiliate">Affiliate network</option><option value="direct_ad">Direct sponsor</option></select>
+                </label>
+                <label>Provider / sponsor name<input id="payoutProvider" required maxlength="100" placeholder="AdSense, affiliate network…" /></label>
+                <label>Provider transaction reference<input id="payoutTransactionId" maxlength="140" /></label>
+                <label>Gross amount<input id="payoutGross" type="number" min="0" step="0.01" required /></label>
+                <label>Fees<input id="payoutFees" type="number" min="0" step="0.01" value="0" required /></label>
+                <label>Currency<input id="payoutCurrency" value="USD" maxlength="3" required /></label>
+                <label>Payout destination<input id="payoutDestination" maxlength="180" placeholder="PayPal, MTN MoMo, bank…" /></label>
+                <label>Record status<select id="payoutStatus"><option value="pending">Pending</option><option value="paid">Marked received</option></select></label>
+                <label class="wide">Notes<textarea id="payoutNotes" rows="2" maxlength="500"></textarea></label>
+              </div>
+              <button class="primary-btn" type="submit">Record External Payout</button>
+            </form>
+            <div class="table-wrap">
+              <table><thead><tr><th>Source / Provider</th><th>Reference</th><th>Gross / Net</th><th>Destination</th><th>Status</th><th>Actions</th></tr></thead><tbody id="externalPayoutTable"></tbody></table>
             </div>
           </article>
 
@@ -509,7 +539,23 @@
                     <input id="paypalUrl" type="url" />
                   </label>
                   <p class="form-help">Website checkout uses PayPal API credentials and a registered webhook from the server environment. These fields do not activate it.</p>
-                  <p class="form-help">Ad networks and affiliate providers pay you through their own payout settings; this dashboard cannot redirect those payments.</p>
+                  <p class="form-help">This PayPal email is only your note; it does not prove ownership. Website PayPal checkout charges the account behind the server API credentials. Ad and affiliate payouts go to payout details configured in each provider account.</p>
+                  <label>MoMo country
+                    <input id="momoCountry" value="Rwanda" />
+                  </label>
+                  <label>MoMo network
+                    <select id="momoNetwork"><option value="MTN">MTN</option><option value="MPS">MPS</option></select>
+                  </label>
+                  <label>MoMo currency
+                    <input id="momoCurrency" value="RWF" readonly />
+                  </label>
+                  <label>MoMo account name
+                    <input id="momoAccountName" />
+                  </label>
+                  <label>MoMo account phone
+                    <input id="momoAccountPhone" type="tel" autocomplete="off" placeholder="Rwanda number with country code" />
+                  </label>
+                  <p class="form-help">This account is a payout reference for your records. Flutterwave customer collections settle to your Flutterwave merchant balance; AdSense, PropellerAds, Adsterra, and affiliate payouts must be configured with those providers directly. No automatic MoMo transfer is enabled.</p>
                   <label>AdSense Publisher ID
                     <input id="adsensePublisherId" />
                   </label>
@@ -531,6 +577,10 @@
                 </div>
                 <button class="primary-btn" type="submit">Save Settings</button>
               </form>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><div><h2>Channel status</h2><p>Configuration visible to this app; provider account ownership and approval are not verified here</p></div></div>
+              <div id="channelStatus" class="rank-list"></div>
             </article>
             <article class="panel">
               <div class="panel-header">

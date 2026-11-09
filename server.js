@@ -35,11 +35,13 @@ if (process.env.SENTRY_DSN) {
 const app = express();
 const stripeWebhook = require("./routes/stripeWebhook");
 const paypalWebhook = require("./routes/paypalWebhook");
+const flutterwaveWebhook = require("./routes/flutterwaveWebhook");
 
 // Stripe signature verification requires the exact, unparsed request body. This
 // route must be registered before the application-wide JSON parser.
 app.post("/api/business/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhook);
 app.post("/api/business/webhooks/paypal", express.raw({ type: "application/json" }), paypalWebhook);
+app.post("/api/business/webhooks/flutterwave", express.json({ limit: "256kb" }), flutterwaveWebhook);
 
 
 // Automatic temporary file cleanup

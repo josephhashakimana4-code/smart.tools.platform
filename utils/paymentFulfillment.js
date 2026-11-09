@@ -74,7 +74,7 @@ async function activateEntitlement(payment, subscriptionData = {}) {
   return null;
 }
 
-async function fulfillPaypalPayment(payment, details = {}, eventId) {
+async function fulfillGatewayPayment(payment, details = {}, eventId) {
   const paid = await Payment.findOneAndUpdate(
     { _id: payment._id, status: "pending" },
     { $set: {
@@ -109,4 +109,4 @@ async function fulfillPaypalPayment(payment, details = {}, eventId) {
   return Payment.findById(current._id);
 }
 
-module.exports = { activateEntitlement, fulfillPaypalPayment };
+module.exports = { activateEntitlement, fulfillGatewayPayment, fulfillPaypalPayment: fulfillGatewayPayment };

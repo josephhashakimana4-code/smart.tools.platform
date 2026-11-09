@@ -8,7 +8,8 @@ const Referral = require("../models/Referral");
 const DirectAdLead = require("../models/DirectAdLead");
 const BusinessSettings = require("../models/BusinessSettings");
 const { isPaypalConfigured, paypalRequest, amountString, currencyCode, getPaypalPlanId, verifyAmount } = require("../utils/paypal");
-const { fulfillPaypalPayment } = require("../utils/paymentFulfillment");
+const { isFlutterwaveConfigured, flutterwaveRequest, verifyFlutterwaveAmount } = require("../utils/flutterwave");
+const { fulfillGatewayPayment } = require("../utils/paymentFulfillment");
 
 const router = express.Router();
 
@@ -25,12 +26,16 @@ function makeApiKey() {
 }
 
 function isStripeConfigured() {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.APP_BASE_URL);
+  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET && process.env.APP_BASE_URL);
 }
 
-function paymentProviders() {
+function paymentProviders(plans = []) {
   const paypal = isPaypalConfigured();
-  return { paypal, stripe: !paypal && isStripeConfigured() };
+  const stripe = isStripeConfigured();
+  const flutterwaveMomo = isFlutterwaveConfigured() && plans.some((plan) =>
+    (plan.interval || "monthly") === "one-time" && Number.isInteger(Number(plan.momoPriceRwf)) && Number(plan.momoPriceRwf) > 0
+  );
+  return { paypal, stripe, flutterwaveMomo };
 }
 
 function checkoutReturnUrl(status) {
@@ -79,6 +84,48 @@ async function createPaypalSubscription({ payment, plan, email }) {
         cancel_url: checkoutReturnUrl("cancelled")
       }
     }
+  });
+}
+
+async function createFlutterwaveMomoCheckout({ payment, plan, email, phoneNumber }) {
+  const result = await flutterwaveRequest("/charges?type=mobile_money_rwanda", {
+    method: "POST",
+    body: {
+      tx_ref: payment.providerSessionId,
+      order_id: payment.providerSessionId,
+      amount: payment.amount,
+      currency: "RWF",
+      phone_number: phoneNumber,
+      email,
+      fullname: payment.customerName,
+      meta: { payment_id: String(payment._id), plan_slug: plan.slug }
+    }
+  });
+  return result;
+}
+
+function normalizeRwandaPhone(value) {
+  let digits = String(value || "").trim().replace(/[\s()-]/g, "");
+  if (digits.startsWith("+")) digits = digits.slice(1);
+  if (digits.startsWith("250")) digits = digits.slice(3);
+  if (digits.startsWith("0")) digits = digits.slice(1);
+  if (!/^7\d{8}$/.test(digits)) return "";
+  return `250${digits}`;
+}
+
+async function confirmFlutterwavePayment(payment, transactionId) {
+  const result = await flutterwaveRequest(`/transactions/${encodeURIComponent(transactionId)}/verify`);
+  const transaction = result.data || {};
+  if (transaction.status !== "successful") return payment;
+  if (transaction.tx_ref !== payment.providerSessionId ||
+    String(transaction.currency || "").toUpperCase() !== "RWF" ||
+    !verifyFlutterwaveAmount(transaction.amount, payment.amount)) {
+    throw new Error("Flutterwave payment details did not match the pending MoMo payment.");
+  }
+  return fulfillGatewayPayment(payment, {
+    captureId: String(transaction.id),
+    customerId: String(transaction.customer?.id || ""),
+    receiptNumber: String(transaction.flw_ref || transaction.id)
   });
 }
 
@@ -298,7 +345,7 @@ router.get("/plans", async (req, res) => {
     res.json({
       plans,
       settings: publicSettings(settings),
-      paymentProviders: paymentProviders()
+      paymentProviders: paymentProviders(plans)
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to load plans." });
@@ -320,32 +367,45 @@ router.post("/checkout-interest", async (req, res) => {
 
     const plan = await Plan.findOne({ slug: slugify(req.body.planSlug), active: true });
     if (!plan) return res.status(404).json({ message: "Plan not found." });
-    if (plan.price <= 0) return res.status(400).json({ message: "The Free plan does not require checkout." });
     if (!["monthly", "yearly", "one-time"].includes(plan.interval || "monthly")) {
       return res.status(400).json({ message: "This plan has an unsupported billing interval." });
     }
-    const gateway = String(req.body.gateway || "");
-    if (!new Set(["stripe", "paypal"]).has(gateway)) return res.status(400).json({ message: "Choose Stripe or PayPal checkout." });
-    if (gateway === "stripe" && isPaypalConfigured()) return res.status(409).json({ message: "PayPal is the configured checkout method." });
+    const requestedGateway = String(req.body.gateway || "");
+    if (!new Set(["stripe", "paypal", "flutterwave_momo"]).has(requestedGateway)) return res.status(400).json({ message: "Choose a supported checkout method." });
+    const gateway = requestedGateway === "flutterwave_momo" ? "flutterwave" : requestedGateway;
+    if (gateway !== "flutterwave" && Number(plan.price) <= 0) return res.status(400).json({ message: "The Free plan does not require checkout." });
     if (gateway === "stripe" && !isStripeConfigured()) return res.status(503).json({ message: "Stripe checkout is not configured." });
     if (gateway === "paypal" && !isPaypalConfigured()) return res.status(503).json({ message: "PayPal checkout needs API credentials and a registered webhook before it can accept payments." });
+    if (gateway === "flutterwave" && !isFlutterwaveConfigured()) return res.status(503).json({ message: "Flutterwave MoMo checkout is not configured." });
+    if (gateway === "flutterwave" && ((plan.interval || "monthly") !== "one-time" || !Number.isInteger(Number(plan.momoPriceRwf)) || !(Number(plan.momoPriceRwf) > 0))) {
+      return res.status(400).json({ message: "Set a positive Rwanda MoMo price for this one-time plan in Admin → Plan Manager." });
+    }
 
     const email = String(req.body.email || "").trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ message: "Enter a valid email address." });
+    const momoPhoneNumber = gateway === "flutterwave" ? normalizeRwandaPhone(req.body.momoPhoneNumber) : "";
+    if (gateway === "flutterwave" && !momoPhoneNumber) return res.status(400).json({ message: "Enter a valid Rwanda mobile number (for example, +250 78 123 4567)." });
 
+    const pendingReference = `pending-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
     const payment = await Payment.create({
       customerName: String(req.body.name || "").trim(),
       customerEmail: email,
       planSlug: plan.slug,
       gateway,
-      amount: plan.price,
-      currency: plan.currency,
+      amount: gateway === "flutterwave" ? Number(plan.momoPriceRwf) : plan.price,
+      currency: gateway === "flutterwave" ? "RWF" : plan.currency,
       status: "pending",
-      reference: `pending-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`
+      reference: pendingReference,
+      providerSessionId: gateway === "flutterwave" ? pendingReference : undefined
     });
     let checkoutUrl;
     try {
-      if (gateway === "stripe") {
+      if (gateway === "flutterwave") {
+        const checkout = await createFlutterwaveMomoCheckout({ payment, plan, email, phoneNumber: momoPhoneNumber });
+        payment.providerSessionId = checkout.data?.tx_ref || checkout.tx_ref || payment.reference;
+        payment.reference = payment.providerSessionId;
+        checkoutUrl = checkout.meta?.authorization?.redirect || checkout.data?.meta?.authorization?.redirect;
+      } else if (gateway === "stripe") {
         const session = await createStripeCheckout({ payment, plan, email });
         payment.providerSessionId = session.id;
         payment.reference = session.id;
@@ -377,7 +437,7 @@ router.post("/checkout-interest", async (req, res) => {
       checkoutUrl
     });
   } catch (err) {
-    res.status(500).json({ message: "Failed to start checkout." });
+    res.status(err.message?.includes("configured") ? 503 : 500).json({ message: err.message || "Failed to start checkout." });
   }
 });
 
@@ -394,7 +454,7 @@ router.post("/api-subscriptions", async (req, res) => {
 
     const planSlug = slugify(req.body.planSlug || "free");
     const plan = await Plan.findOne({ slug: planSlug, active: true }) || { slug: "free", price: 0, apiLimit: 100 };
-    if (Number(plan.price) > 0) {
+    if (Number(plan.price) > 0 || Number(plan.momoPriceRwf) > 0) {
       return res.status(409).json({
         message: "A paid API plan requires checkout.",
         requiresCheckout: true,
@@ -421,8 +481,15 @@ router.get("/checkout-result", async (req, res) => {
     const paypalOrderId = String(req.query.token || req.query.paypal_order_id || "");
     const paypalSubscriptionId = String(req.query.subscription_id || req.query.paypal_subscription_id || "");
     const reference = String(req.query.session_id || "");
+    const flutterwaveReference = String(req.query.tx_ref || "");
+    const flutterwaveTransactionId = String(req.query.transaction_id || "");
     let payment;
-    if (paypalOrderId) {
+    if (flutterwaveReference) {
+      payment = await Payment.findOne({ gateway: "flutterwave", providerSessionId: flutterwaveReference });
+      if (payment?.status === "pending" && flutterwaveTransactionId) {
+        payment = await confirmFlutterwavePayment(payment, flutterwaveTransactionId);
+      }
+    } else if (paypalOrderId) {
       payment = await Payment.findOne({ gateway: "paypal", providerSessionId: paypalOrderId });
       if (payment?.status === "pending") payment = await capturePaypalOrder(payment);
     } else if (paypalSubscriptionId) {

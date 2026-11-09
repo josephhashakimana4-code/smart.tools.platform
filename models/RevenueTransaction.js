@@ -78,6 +78,20 @@ const revenueTransactionSchema = new mongoose.Schema(
       trim: true
     },
 
+    destination: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    notes: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    paidAt: Date,
+
     providerTransactionId: {
       type: String,
       trim: true,

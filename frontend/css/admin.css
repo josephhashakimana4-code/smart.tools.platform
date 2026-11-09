@@ -137,6 +137,7 @@ body {
 .stat-card { padding: 16px; min-height: 104px; }
 .stat-card span { display: block; margin-bottom: 8px; color: #64748b; font-size: 13px; }
 .stat-card strong { font-size: 25px; overflow-wrap: anywhere; }
+.stat-card small { display: block; margin-top: 7px; color: #64748b; font-size: 11px; line-height: 1.4; }
 .panel { padding: 16px; margin-bottom: 18px; }
 
 .panel-header {
@@ -297,6 +298,10 @@ th { color: #475569; font-size: 12px; text-transform: uppercase; text-align: lef
 
 .system-grid span { display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }
 .system-grid strong { overflow-wrap: anywhere; }
+.channel-status-item { padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+.channel-status-item:last-child { border-bottom: 0; }
+.channel-status-item > strong { margin-right: 10px; }
+.channel-status-item p { margin: 7px 0 0; color: #64748b; font-size: 13px; line-height: 1.5; }
 canvas { max-width: 100%; max-height: 320px; }
 
 @media (max-width: 1200px) {

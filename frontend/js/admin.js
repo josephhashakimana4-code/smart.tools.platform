@@ -23,6 +23,7 @@ const state = {
   directAdLeads: [],
   plans: [],
   payments: [],
+  revenueTransactions: [],
   revenue: {},
   apiSubscriptions: [],
   trafficChart: null,
@@ -75,6 +76,8 @@ const els = {
   planForm: $("planForm"),
   planTable: $("planTable"),
   paymentTable: $("paymentTable"),
+  externalPayoutForm: $("externalPayoutForm"),
+  externalPayoutTable: $("externalPayoutTable"),
   apiSubscriptionForm: $("apiSubscriptionForm"),
   apiSubscriptionTable: $("apiSubscriptionTable"),
   apiStatus: $("apiStatus"),
@@ -321,7 +324,7 @@ async function loadDashboard() {
   setText("dashboardStatus", "Refreshing live data...");
 
   try {
-    const [stats, tools, ads, affiliates, businessSettings, blogPosts, videos, subscribers, contacts, directAdLeads, plans, payments, apiSubscriptions, revenue] = await Promise.all([
+    const [stats, tools, ads, affiliates, businessSettings, blogPosts, videos, subscribers, contacts, directAdLeads, plans, payments, apiSubscriptions, revenue, revenueTransactions] = await Promise.all([
       api.get("/api/admin/stats"),
       api.get("/api/admin/tools"),
       api.get("/api/admin/ads"),
@@ -335,7 +338,8 @@ async function loadDashboard() {
       api.get("/api/admin/plans"),
       api.get("/api/admin/payments"),
       api.get("/api/admin/api-subscriptions"),
-      api.get("/api/admin/revenue-summary")
+      api.get("/api/admin/revenue-summary"),
+      api.get("/api/admin/revenue-transactions")
     ]);
 
     state.stats = stats || {};
@@ -352,11 +356,12 @@ async function loadDashboard() {
     state.payments = Array.isArray(payments) ? payments : [];
     state.apiSubscriptions = Array.isArray(apiSubscriptions) ? apiSubscriptions : [];
     state.revenue = revenue || {};
+    state.revenueTransactions = Array.isArray(revenueTransactions) ? revenueTransactions : [];
     state.categories = [...new Set(state.tools.map((tool) => tool.category).filter(Boolean))].sort();
 
     renderStats();
-    setText("totalRevenue", `USD ${Number(state.revenue.totalRevenue || 0).toFixed(2)}`);
-    setText("monthlyRevenue", `USD ${Number(state.revenue.monthlyRevenue || 0).toFixed(2)}`);
+    setText("websiteRevenueTotals", formatCurrencyTotals(state.revenue.websiteRevenue));
+    setText("externalPayoutTotals", formatCurrencyTotals(state.revenue.externalPayouts));
     setText("paidSubscribers", number(state.revenue.paidSubscribers));
     setText("paymentExceptions", `${number(state.revenue.failedPayments)} / ${number(state.revenue.refunds)}`);
     renderCategoryFilter();
@@ -371,6 +376,8 @@ async function loadDashboard() {
     renderDirectAdLeads();
     renderPlans();
     renderPayments();
+    renderExternalPayouts();
+    renderChannelStatus();
     renderApiSubscriptions();
     renderLists();
     renderCharts();
@@ -769,6 +776,11 @@ function renderBusinessSettings() {
   $("logoUrl") && ($("logoUrl").value = settings.logoUrl || "");
   $("paypalAccountEmail") && ($("paypalAccountEmail").value = settings.paypalAccountEmail || "");
   $("paypalUrl") && ($("paypalUrl").value = settings.paypalUrl || "");
+  $("momoCountry") && ($("momoCountry").value = settings.momoCountry || "Rwanda");
+  $("momoNetwork") && ($("momoNetwork").value = settings.momoNetwork === "MPS" ? "MPS" : "MTN");
+  $("momoCurrency") && ($("momoCurrency").value = settings.momoCurrency || "RWF");
+  $("momoAccountName") && ($("momoAccountName").value = settings.momoAccountName || "");
+  $("momoAccountPhone") && ($("momoAccountPhone").value = settings.momoAccountPhone || "");
   $("adsensePublisherId") && ($("adsensePublisherId").value = settings.adsensePublisherId || "");
   $("propellerAdsCode") && ($("propellerAdsCode").value = settings.propellerAdsCode || "");
   $("adsterraCode") && ($("adsterraCode").value = settings.adsterraCode || "");
@@ -785,6 +797,11 @@ async function saveBusinessSettings(event) {
       logoUrl: text($("logoUrl")?.value),
       paypalAccountEmail: text($("paypalAccountEmail")?.value),
       paypalUrl: text($("paypalUrl")?.value),
+      momoCountry: text($("momoCountry")?.value) || "Rwanda",
+      momoNetwork: text($("momoNetwork")?.value) || "MTN",
+      momoCurrency: "RWF",
+      momoAccountName: text($("momoAccountName")?.value),
+      momoAccountPhone: text($("momoAccountPhone")?.value),
       adsensePublisherId: text($("adsensePublisherId")?.value),
       propellerAdsCode: text($("propellerAdsCode")?.value),
       adsterraCode: text($("adsterraCode")?.value),
@@ -1025,7 +1042,7 @@ function renderPlans() {
 function renderPayments() {
   if (!els.paymentTable) return;
   if (!state.payments?.length) {
-    els.paymentTable.innerHTML = '<tr><td colspan="5" class="empty-state">No payments yet.</td></tr>';
+    els.paymentTable.innerHTML = '<tr><td colspan="6" class="empty-state">No payments yet.</td></tr>';
     return;
   }
 
@@ -1034,13 +1051,62 @@ function renderPayments() {
       <td>${escapeHtml(payment.customerName || payment.customerEmail || "-")}</td>
       <td>${escapeHtml(payment.planSlug || "-")}</td>
       <td>${escapeHtml(`${payment.currency || "USD"} ${payment.amount || 0}`)}</td>
-      <td><span class="badge ${payment.status === "paid" ? "" : payment.status === "failed" ? "inactive" : ""}">${escapeHtml(payment.status || "pending")}</span></td>
+      <td>${escapeHtml(payment.gateway === "flutterwave" ? "Flutterwave Rwanda MoMo" : payment.gateway === "paypal" ? "PayPal website checkout" : payment.gateway === "stripe" ? "Stripe website checkout" : payment.gateway || "Manual")}</td>
+      <td><span class="badge ${payment.status === "paid" ? "" : "inactive"}">${escapeHtml(payment.status || "pending")}</span></td>
       <td class="actions-cell">
-        <button class="small-btn secondary-btn cancel-payment" type="button" data-id="${escapeHtml(payment._id)}">Cancel</button>
-        <button class="danger-btn small-btn refund-payment" type="button" data-id="${escapeHtml(payment._id)}">Refund</button>
+        ${payment.providerSubscriptionId ? `<button class="small-btn secondary-btn cancel-payment" type="button" data-id="${escapeHtml(payment._id)}">Cancel</button>` : ""}
+        ${payment.status === "paid" && ["paypal", "stripe"].includes(payment.gateway) ? `<button class="danger-btn small-btn refund-payment" type="button" data-id="${escapeHtml(payment._id)}">Refund</button>` : ""}
+        ${payment.status === "paid" && payment.gateway === "flutterwave" ? '<span class="form-help">Refund in Flutterwave dashboard</span>' : ""}
       </td>
     </tr>
   `).join("");
+}
+
+function formatCurrencyTotals(groups) {
+  if (!Array.isArray(groups) || !groups.length) return "No records";
+  return groups.map((item) => `${item.currency || "USD"} ${Number(item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join(" · ");
+}
+
+function renderExternalPayouts() {
+  if (!els.externalPayoutTable) return;
+  if (!state.revenueTransactions.length) {
+    els.externalPayoutTable.innerHTML = '<tr><td colspan="6" class="empty-state">No external payout records yet.</td></tr>';
+    return;
+  }
+  const sourceLabels = { advertising: "Ad provider", affiliate: "Affiliate network", direct_ad: "Direct sponsor" };
+  els.externalPayoutTable.innerHTML = state.revenueTransactions.map((item) => `
+    <tr>
+      <td>${escapeHtml(sourceLabels[item.source] || item.source || "External")}<br /><strong>${escapeHtml(item.provider || "-")}</strong></td>
+      <td>${escapeHtml(item.providerTransactionId || item.transactionId || "-")}</td>
+      <td>${escapeHtml(`${item.currency || "USD"} ${Number(item.gross || 0).toFixed(2)} gross / ${Number(item.net ?? item.amount ?? 0).toFixed(2)} net`)}</td>
+      <td>${escapeHtml(item.destination || "Not recorded")}</td>
+      <td><span class="badge ${item.status === "paid" ? "" : "inactive"}">${item.status === "paid" ? "Marked received · manual" : "Pending"}</span></td>
+      <td class="actions-cell">
+        ${item.status === "paid" ? "" : `<button class="small-btn secondary-btn mark-payout" type="button" data-id="${escapeHtml(item._id)}">Mark received</button>`}
+        <button class="danger-btn small-btn delete-payout" type="button" data-id="${escapeHtml(item._id)}">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function renderChannelStatus() {
+  const target = $("channelStatus");
+  if (!target) return;
+  const channels = state.revenue.channels || {};
+  const status = (ready) => `<span class="badge ${ready ? "" : "inactive"}">${ready ? "Configured" : "Needs setup"}</span>`;
+  const adTags = channels.adNetworkTags || {};
+  const paypalReference = channels.paypalAccountReference || "No account email reference saved";
+  const momoDetails = channels.momoRecipientConfigured
+    ? `${channels.momoAccountName} · ${channels.momoNetwork} · ${channels.momoAccountPhone}`
+    : "Add the account name and phone in Business Settings";
+  target.innerHTML = `
+    <div class="channel-status-item"><strong>PayPal website checkout</strong>${status(channels.paypalCheckoutReady)}<p>Merchant is the account behind server credentials. Reference: ${escapeHtml(paypalReference)}. Account ownership is not verified by this app.</p></div>
+    <div class="channel-status-item"><strong>Stripe website checkout</strong>${status(channels.stripeCheckoutReady)}<p>Customer sales are collected by the Stripe account connected in server settings.</p></div>
+    <div class="channel-status-item"><strong>Flutterwave Rwanda MoMo collections</strong>${status(channels.flutterwaveMomoCheckoutReady)}<p>RWF checkout requires Flutterwave server keys and a one-time plan with an RWF price. Collections settle to Flutterwave; they do not automatically pay out to MoMo.</p></div>
+    <div class="channel-status-item"><strong>MoMo payout reference</strong>${status(channels.momoRecipientConfigured)}<p>${escapeHtml(momoDetails)}. Configure this same destination separately inside each ad or affiliate provider.</p></div>
+    <div class="channel-status-item"><strong>Ad provider tags</strong><span class="badge ${Object.values(adTags).some(Boolean) ? "" : "inactive"}">${Object.values(adTags).filter(Boolean).length} saved</span><p>AdSense publisher ID: ${adTags.adsense ? "saved" : "missing"} · PropellerAds code: ${adTags.propellerAds ? "saved" : "missing"} · Adsterra code: ${adTags.adsterra ? "saved" : "missing"}. Saved tags do not prove approval or payout setup.</p></div>
+    <div class="channel-status-item"><strong>Affiliate and sponsor income</strong><span class="badge inactive">Manual tracking</span><p>Affiliate links record clicks only; advertiser requests create leads only. Record confirmed provider payouts in the external payout ledger.</p></div>
+  `;
 }
 
 function renderApiSubscriptions() {
@@ -1069,6 +1135,7 @@ function planFormData() {
     name: text($("planName")?.value),
     slug: text($("planSlug")?.value) || slugify($("planName")?.value),
     price: Number($("planPrice")?.value || 0),
+    momoPriceRwf: Number($("planMomoPriceRwf")?.value || 0) || null,
     currency: text($("planCurrency")?.value) || "USD",
     interval: $("planInterval")?.value || "monthly",
     dailyLimit: Number($("planDailyLimit")?.value || 0),
@@ -1134,6 +1201,51 @@ async function saveApiSubscription(event) {
   } catch (err) {
     setMessage(err.message, true);
   }
+}
+
+async function saveExternalPayout(event) {
+  event.preventDefault();
+  try {
+    const data = {
+      source: $("payoutSource")?.value,
+      provider: text($("payoutProvider")?.value),
+      providerTransactionId: text($("payoutTransactionId")?.value),
+      gross: Number($("payoutGross")?.value || 0),
+      fees: Number($("payoutFees")?.value || 0),
+      currency: text($("payoutCurrency")?.value).toUpperCase(),
+      destination: text($("payoutDestination")?.value),
+      status: $("payoutStatus")?.value || "pending",
+      notes: text($("payoutNotes")?.value)
+    };
+    await api.post("/api/admin/revenue-transactions", data);
+    els.externalPayoutForm?.reset();
+    $("payoutCurrency") && ($("payoutCurrency").value = "USD");
+    $("payoutFees") && ($("payoutFees").value = "0");
+    setMessage("External payout record saved. This is a manual record, not a provider verification.");
+    await loadDashboard();
+  } catch (err) {
+    setMessage(err.message, true);
+  }
+}
+
+async function markPayoutReceived(button) {
+  const id = button.dataset.id;
+  if (!id || !window.confirm("Mark this external payout as received? This is a manual record and will not contact the provider.")) return;
+  try {
+    await api.put(`/api/admin/revenue-transactions/${encodeURIComponent(id)}`, { status: "paid" });
+    setMessage("Payout marked received manually.");
+    await loadDashboard();
+  } catch (err) { setMessage(err.message, true); }
+}
+
+async function deletePayout(button) {
+  const id = button.dataset.id;
+  if (!id || !window.confirm("Delete this manual payout record?")) return;
+  try {
+    await api.delete(`/api/admin/revenue-transactions/${encodeURIComponent(id)}`);
+    setMessage("Payout record deleted.");
+    await loadDashboard();
+  } catch (err) { setMessage(err.message, true); }
 }
 
 async function deletePlan(button) {
@@ -1310,6 +1422,7 @@ document.addEventListener("click", (event) => {
       $("planName") && ($("planName").value = plan.name || "");
       $("planSlug") && ($("planSlug").value = plan.slug || "");
       $("planPrice") && ($("planPrice").value = plan.price ?? 0);
+      $("planMomoPriceRwf") && ($("planMomoPriceRwf").value = plan.momoPriceRwf ?? "");
       $("planCurrency") && ($("planCurrency").value = plan.currency || "USD");
       $("planInterval") && ($("planInterval").value = plan.interval || "monthly");
       $("planDailyLimit") && ($("planDailyLimit").value = plan.dailyLimit || 0);
@@ -1335,6 +1448,17 @@ document.addEventListener("click", (event) => {
   const refundPaymentButton = event.target.closest(".refund-payment");
   if (refundPaymentButton) {
     refundPayment(refundPaymentButton);
+    return;
+  }
+
+  const markPayoutButton = event.target.closest(".mark-payout");
+  if (markPayoutButton) {
+    markPayoutReceived(markPayoutButton);
+    return;
+  }
+  const deletePayoutButton = event.target.closest(".delete-payout");
+  if (deletePayoutButton) {
+    deletePayout(deletePayoutButton);
     return;
   }
 
@@ -1469,6 +1593,7 @@ els.categoryFilter?.addEventListener("change", renderTools);
 els.affiliateForm?.addEventListener("submit", saveAffiliate);
 els.adForm?.addEventListener("submit", saveAd);
 els.businessSettingsForm?.addEventListener("submit", saveBusinessSettings);
+els.externalPayoutForm?.addEventListener("submit", saveExternalPayout);
 els.blogPostForm?.addEventListener("submit", saveBlogPost);
 els.videoForm?.addEventListener("submit", saveVideo);
 els.planForm?.addEventListener("submit", savePlan);

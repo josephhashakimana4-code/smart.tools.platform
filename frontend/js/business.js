@@ -1,5 +1,6 @@
 const BUSINESS_API_BASE = window.location.protocol === "file:" ? "http://localhost:5000" : window.location.origin;
 let preferredCheckoutGateway = "";
+let availableCheckoutPlans = [];
 
 async function postBusiness(path, body) {
   const res = await apiFetch(`${BUSINESS_API_BASE}${path}`, {
@@ -46,7 +47,8 @@ function setPlanOptions(select, plans, emptyMessage) {
   plans.forEach((plan) => {
     const option = document.createElement("option");
     option.value = plan.slug;
-    option.textContent = `${plan.name} - ${plan.currency || "USD"} ${Number(plan.price || 0).toFixed(2)}`;
+    const isMomoPlan = select.id === "checkoutPlan" && document.getElementById("checkoutGateway")?.value === "flutterwave_momo";
+    option.textContent = `${plan.name} - ${isMomoPlan ? "RWF" : (plan.currency || "USD")} ${Number(isMomoPlan ? plan.momoPriceRwf : plan.price || 0).toLocaleString(undefined, { maximumFractionDigits: isMomoPlan ? 0 : 2, minimumFractionDigits: isMomoPlan ? 0 : 2 })}`;
     select.appendChild(option);
   });
 }
@@ -54,9 +56,10 @@ function setPlanOptions(select, plans, emptyMessage) {
 function setPaymentProviders(select, providers = {}) {
   const available = [
     ...(providers.paypal ? [{ value: "paypal", label: "Pay with PayPal" }] : []),
-    ...(providers.stripe ? [{ value: "stripe", label: "Secure card checkout (Stripe)" }] : [])
+    ...(providers.stripe ? [{ value: "stripe", label: "Secure card checkout (Stripe)" }] : []),
+    ...(providers.flutterwaveMomo ? [{ value: "flutterwave_momo", label: "Rwanda Mobile Money (MTN / MPS) · RWF" }] : [])
   ];
-  preferredCheckoutGateway = available[0]?.value || "";
+  preferredCheckoutGateway = providers.paypal ? "paypal" : providers.stripe ? "stripe" : "";
   if (!select) return;
   select.replaceChildren();
   if (!available.length) {
@@ -81,6 +84,25 @@ function setPaymentProviders(select, providers = {}) {
     option.textContent = label;
     select.appendChild(option);
   });
+  updateCheckoutPlanOptions();
+}
+
+function updateCheckoutPlanOptions() {
+  const select = document.getElementById("checkoutPlan");
+  if (!select) return;
+  const gateway = document.getElementById("checkoutGateway")?.value;
+  const momo = gateway === "flutterwave_momo";
+  const plans = availableCheckoutPlans.filter((plan) => momo
+    ? (plan.interval || "monthly") === "one-time" && Number.isInteger(Number(plan.momoPriceRwf)) && Number(plan.momoPriceRwf) > 0
+    : Number(plan.price || 0) > 0);
+  setPlanOptions(select, plans, momo ? "No one-time plan has an RWF MoMo price" : "No paid plans are currently available");
+  const submit = document.querySelector("#checkoutForm button[type='submit']");
+  if (submit) submit.disabled = !plans.length || Boolean(document.getElementById("checkoutGateway")?.disabled);
+  const phoneGroup = document.getElementById("checkoutMomoPhoneGroup");
+  const phoneInput = document.getElementById("checkoutMomoPhone");
+  if (phoneGroup) phoneGroup.hidden = !momo;
+  if (phoneInput) phoneInput.required = momo;
+  if (momo) setFormMessage("checkoutMessage", "Rwanda MoMo is available for one-time plans priced in RWF.");
 }
 
 async function loadPlans() {
@@ -96,6 +118,7 @@ async function loadPlans() {
     }
 
     const plans = Array.isArray(data.plans) ? data.plans : [];
+    availableCheckoutPlans = plans;
     setPaymentProviders(document.getElementById("checkoutGateway"), data.paymentProviders);
     if (grid) {
       grid.replaceChildren();
@@ -106,7 +129,13 @@ async function loadPlans() {
         const title = document.createElement("h2");
         title.textContent = plan.name;
         const price = document.createElement("strong");
-        price.textContent = `${plan.currency || "USD"} ${Number(plan.price || 0).toFixed(2)} / ${plan.interval || "monthly"}`;
+        const basePrice = Number(plan.price || 0);
+        const momoPrice = Number(plan.momoPriceRwf || 0);
+        price.textContent = basePrice > 0
+          ? `${plan.currency || "USD"} ${basePrice.toFixed(2)} / ${plan.interval || "monthly"}${momoPrice > 0 && (plan.interval || "monthly") === "one-time" ? ` · RWF ${momoPrice.toLocaleString()} via MoMo` : ""}`
+          : momoPrice > 0 && (plan.interval || "monthly") === "one-time"
+            ? `RWF ${momoPrice.toLocaleString()} one-time via MoMo`
+            : `${plan.currency || "USD"} 0.00 / ${plan.interval || "monthly"}`;
         const details = document.createElement("p");
         details.textContent = `${plan.adsRemoved ? "No ads" : "Ads shown"} / ${Number(plan.dailyLimit || 0).toLocaleString()} daily tool uses / ${Number(plan.apiLimit || 0).toLocaleString()} API calls`;
         const features = document.createElement("ul");
@@ -131,11 +160,7 @@ async function loadPlans() {
       }
     }
 
-    setPlanOptions(
-      checkoutPlan,
-      plans.filter((plan) => Number(plan.price || 0) > 0),
-      "No paid plans are currently available"
-    );
+    updateCheckoutPlanOptions();
     setPlanOptions(
       apiPlan,
       plans.filter((plan) => Number(plan.apiLimit || 0) > 0),
@@ -157,12 +182,15 @@ async function handleCheckout(event) {
       name: document.getElementById("checkoutName").value,
       email: document.getElementById("checkoutEmail").value,
       planSlug: document.getElementById("checkoutPlan").value,
-      gateway: document.getElementById("checkoutGateway").value
+      gateway: document.getElementById("checkoutGateway").value,
+      momoPhoneNumber: document.getElementById("checkoutMomoPhone")?.value || ""
     });
     if (!data.checkoutUrl) {
       throw new Error("Checkout is unavailable because the payment provider did not return a checkout link.");
     }
-    setFormMessage(messageId, "Opening secure checkout...");
+    setFormMessage(messageId, data.payment?.gateway === "flutterwave"
+      ? "Opening Rwanda MoMo authorization. Approve the amount on your phone; the plan activates after Flutterwave confirms the payment."
+      : "Opening secure checkout...");
     window.location.assign(data.checkoutUrl);
   } catch (err) {
     setFormMessage(messageId, err.message, true);
@@ -226,6 +254,7 @@ async function handleApiSubscription(event) {
   } catch (err) {
     if (err.status === 409 && err.data?.requiresCheckout) {
       try {
+        if (!preferredCheckoutGateway) throw new Error("Paid API subscriptions need PayPal or Stripe checkout. Rwanda MoMo is currently enabled only for one-time plans.");
         const checkout = await postBusiness("/api/business/checkout-interest", { name, email, planSlug, gateway: preferredCheckoutGateway });
         if (!checkout.checkoutUrl) {
           throw new Error("Checkout is unavailable because the payment provider did not return a checkout link.");
@@ -244,17 +273,22 @@ async function handleApiSubscription(event) {
 document.addEventListener("DOMContentLoaded", () => {
   loadPlans().catch((error) => console.error("Unable to load business plans:", error));
   const params = new URLSearchParams(window.location.search);
-  if (params.get("checkout") === "cancelled") {
+  const providerStatus = String(params.get("status") || "").toLowerCase();
+  if (params.get("checkout") === "cancelled" || (params.get("gateway") === "flutterwave_momo" && ["cancelled", "canceled", "failed"].includes(providerStatus))) {
     setFormMessage("checkoutMessage", "Checkout was cancelled. No payment was completed.");
   }
   const paypalOrderId = params.get("token") || params.get("paypal_order_id");
   const paypalSubscriptionId = params.get("subscription_id") || params.get("paypal_subscription_id");
   const stripeSessionId = params.get("session_id");
-  if (params.get("checkout") === "success" && (paypalOrderId || paypalSubscriptionId || stripeSessionId)) {
+  const flutterwaveReference = params.get("tx_ref");
+  const flutterwaveTransactionId = params.get("transaction_id");
+  if (params.get("checkout") === "success" && (paypalOrderId || paypalSubscriptionId || stripeSessionId || flutterwaveReference)) {
     const resultQuery = new URLSearchParams();
     if (paypalOrderId) resultQuery.set("token", paypalOrderId);
     if (paypalSubscriptionId) resultQuery.set("subscription_id", paypalSubscriptionId);
     if (stripeSessionId) resultQuery.set("session_id", stripeSessionId);
+    if (flutterwaveReference) resultQuery.set("tx_ref", flutterwaveReference);
+    if (flutterwaveTransactionId) resultQuery.set("transaction_id", flutterwaveTransactionId);
     let attempts = 0;
     const checkStatus = async () => {
       attempts += 1;
@@ -283,6 +317,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   document.getElementById("checkoutForm")?.addEventListener("submit", handleCheckout);
+  document.getElementById("checkoutGateway")?.addEventListener("change", updateCheckoutPlanOptions);
   document.getElementById("referralForm")?.addEventListener("submit", handleReferral);
   document.getElementById("advertiseForm")?.addEventListener("submit", handleAdvertise);
   document.getElementById("apiSubscriptionForm")?.addEventListener("submit", handleApiSubscription);

@@ -22,8 +22,10 @@ const Referral = require("../models/Referral");
 const DirectAdLead = require("../models/DirectAdLead");
 const BusinessSettings = require("../models/BusinessSettings");
 const Affiliate = require("../models/Affiliate");
+const RevenueTransaction = require("../models/RevenueTransaction");
 const { getFallbackTools } = require("../config/fallbackTools");
-const { paypalRequest } = require("../utils/paypal");
+const { paypalRequest, isPaypalConfigured } = require("../utils/paypal");
+const { isFlutterwaveConfigured } = require("../utils/flutterwave");
 
 const router = express.Router();
 
@@ -37,6 +39,7 @@ const memoryState = {
   contacts: [],
   plans: [],
   payments: [],
+  revenueTransactions: [],
   apiSubscriptions: [],
   settings: {
     key: "default",
@@ -44,6 +47,11 @@ const memoryState = {
     logoUrl: "",
     paypalAccountEmail: "",
     paypalUrl: "",
+    momoCountry: "Rwanda",
+    momoNetwork: "MTN",
+    momoCurrency: "RWF",
+    momoAccountName: "",
+    momoAccountPhone: "",
     adsensePublisherId: "",
     propellerAdsCode: "",
     adsterraCode: "",
@@ -641,6 +649,14 @@ router.delete("/contacts/:id", async (req, res) => {
 /* =========================
    PLANS
 ========================= */
+function readMomoPlanPrice(value) {
+  if (value === undefined) return { supplied: false };
+  if (value === null || value === "") return { supplied: true, value: null };
+  const price = Number(value);
+  if (!Number.isInteger(price) || price < 0) return { error: "Rwanda MoMo prices must be zero or a positive whole number of RWF." };
+  return { supplied: true, value: price || null };
+}
+
 router.get("/plans", async (req, res) => {
   if (!isDbReady()) {
     return res.json(memoryState.plans.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
@@ -651,27 +667,33 @@ router.get("/plans", async (req, res) => {
 });
 
 router.post("/plans", async (req, res) => {
+  const momoPrice = readMomoPlanPrice(req.body.momoPriceRwf);
+  if (momoPrice.error) return res.status(400).json({ message: momoPrice.error });
+  const input = { ...req.body, ...(momoPrice.supplied ? { momoPriceRwf: momoPrice.value } : {}) };
   if (!isDbReady()) {
-    const payload = { _id: makeId(), ...req.body, createdAt: new Date().toISOString() };
+    const payload = { _id: makeId(), ...input, createdAt: new Date().toISOString() };
     memoryState.plans.push(payload);
     return res.status(201).json(payload);
   }
 
-  const payload = { ...req.body };
+  const payload = { ...input };
   payload.slug = payload.slug || slugify(payload.name);
   const plan = await Plan.create(payload);
   res.status(201).json(plan);
 });
 
 router.put("/plans/:id", async (req, res) => {
+  const momoPrice = readMomoPlanPrice(req.body.momoPriceRwf);
+  if (momoPrice.error) return res.status(400).json({ message: momoPrice.error });
+  const input = { ...req.body, ...(momoPrice.supplied ? { momoPriceRwf: momoPrice.value } : {}) };
   if (!isDbReady()) {
     const index = memoryState.plans.findIndex((plan) => plan._id === req.params.id);
     if (index === -1) return res.status(404).json({ message: "Plan not found." });
-    memoryState.plans[index] = { ...memoryState.plans[index], ...req.body };
+    memoryState.plans[index] = { ...memoryState.plans[index], ...input };
     return res.json(memoryState.plans[index]);
   }
 
-  const payload = { ...req.body };
+  const payload = { ...input };
   if (payload.slug) payload.slug = slugify(payload.slug);
   const plan = await Plan.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
   if (!plan) return res.status(404).json({ message: "Plan not found." });
@@ -698,6 +720,86 @@ router.get("/payments", async (req, res) => {
 
   const payments = await Payment.find().sort({ createdAt: -1 });
   res.json(payments);
+});
+
+function cleanRevenuePayload(body, { allowStatus = true } = {}) {
+  const source = String(body.source || "");
+  const provider = String(body.provider || "").trim().slice(0, 100);
+  const currency = String(body.currency || "USD").trim().toUpperCase();
+  const gross = Number(body.gross);
+  const fees = Number(body.fees || 0);
+  if (!["affiliate", "advertising", "direct_ad"].includes(source)) throw new Error("Choose an external revenue source.");
+  if (!provider) throw new Error("Enter the provider or advertiser name.");
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Currency must be a three-letter code such as USD or RWF.");
+  if (!Number.isFinite(gross) || gross < 0 || !Number.isFinite(fees) || fees < 0 || fees > gross) {
+    throw new Error("Enter valid gross and fee amounts; fees cannot exceed gross.");
+  }
+  const status = allowStatus && body.status === "paid" ? "paid" : "pending";
+  return {
+    source,
+    provider,
+    transactionId: String(body.transactionId || "").trim().slice(0, 140),
+    providerTransactionId: String(body.providerTransactionId || "").trim().slice(0, 140),
+    gross,
+    fees,
+    amount: gross - fees,
+    net: gross - fees,
+    currency,
+    destination: String(body.destination || "").trim().slice(0, 180),
+    notes: String(body.notes || "").trim().slice(0, 500),
+    status,
+    ...(status === "paid" ? { paidAt: new Date() } : {})
+  };
+}
+
+router.get("/revenue-transactions", async (req, res) => {
+  if (!isDbReady()) return res.json(memoryState.revenueTransactions.slice().sort((a, b) => new Date(b.occurredAt || 0) - new Date(a.occurredAt || 0)));
+  const transactions = await RevenueTransaction.find({ source: { $in: ["affiliate", "advertising", "direct_ad"] } }).sort({ occurredAt: -1, createdAt: -1 });
+  res.json(transactions);
+});
+
+router.post("/revenue-transactions", async (req, res) => {
+  try {
+    const payload = cleanRevenuePayload(req.body || {});
+    if (!payload.transactionId) payload.transactionId = `manual-${Date.now()}-${crypto.randomBytes(5).toString("hex")}`;
+    payload.occurredAt = req.body.occurredAt && !Number.isNaN(Date.parse(req.body.occurredAt)) ? new Date(req.body.occurredAt) : new Date();
+    if (!isDbReady()) {
+      if (memoryState.revenueTransactions.some((item) => item.transactionId === payload.transactionId)) return res.status(409).json({ message: "That transaction reference is already recorded." });
+      const transaction = { _id: makeId(), ...payload, createdAt: new Date().toISOString() };
+      memoryState.revenueTransactions.push(transaction);
+      return res.status(201).json(transaction);
+    }
+    const transaction = await RevenueTransaction.create(payload);
+    res.status(201).json(transaction);
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: "That transaction reference is already recorded." });
+    res.status(400).json({ message: error.message || "Could not record this external payout." });
+  }
+});
+
+router.put("/revenue-transactions/:id", async (req, res) => {
+  const status = req.body.status === "paid" ? "paid" : req.body.status === "pending" ? "pending" : "";
+  if (!status) return res.status(400).json({ message: "Choose Pending or Marked received." });
+  const update = { status, paidAt: status === "paid" ? new Date() : null };
+  if (req.body.notes !== undefined) update.notes = String(req.body.notes).trim().slice(0, 500);
+  if (!isDbReady()) {
+    const transaction = memoryState.revenueTransactions.find((item) => item._id === req.params.id);
+    if (!transaction) return res.status(404).json({ message: "Payout record not found." });
+    Object.assign(transaction, update);
+    return res.json(transaction);
+  }
+  const transaction = await RevenueTransaction.findByIdAndUpdate(req.params.id, { $set: update }, { new: true, runValidators: true });
+  if (!transaction) return res.status(404).json({ message: "Payout record not found." });
+  res.json(transaction);
+});
+
+router.delete("/revenue-transactions/:id", async (req, res) => {
+  if (!isDbReady()) {
+    memoryState.revenueTransactions = memoryState.revenueTransactions.filter((item) => item._id !== req.params.id);
+    return res.json({ success: true });
+  }
+  await RevenueTransaction.findByIdAndDelete(req.params.id);
+  res.json({ success: true });
 });
 
 router.post("/payments", async (req, res) => {
@@ -799,18 +901,84 @@ async function stripeRequest(path, body) {
 }
 
 router.get("/revenue-summary", async (req, res) => {
-  if (!isDbReady()) return res.json({ totalRevenue: 0, monthlyRevenue: 0, paidSubscribers: 0, transactions: 0, failedPayments: 0, refunds: 0, affiliateCommissions: 0, advertisingRevenue: 0, monthly: [] });
-  const start = monthStart();
-  const [total, monthly, paidSubscribers, transactions, failedPayments, refunds, monthlyRows] = await Promise.all([
-    Payment.aggregate([{ $match: { status: "paid" } }, { $group: { _id: null, value: { $sum: "$amount" } } }]),
-    Payment.aggregate([{ $match: { status: "paid", createdAt: { $gte: start } } }, { $group: { _id: null, value: { $sum: "$amount" } } }]),
-    Subscription.countDocuments({ status: "active" }),
-    Payment.countDocuments(),
-    Payment.countDocuments({ status: "failed" }),
-    Payment.countDocuments({ status: "refunded" }),
-    Payment.aggregate([{ $match: { status: "paid" } }, { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } }, revenue: { $sum: "$amount" }, transactions: { $sum: 1 } } }, { $sort: { _id: 1 } }, { $limit: 12 }])
-  ]);
-  res.json({ totalRevenue: total[0]?.value || 0, monthlyRevenue: monthly[0]?.value || 0, paidSubscribers, transactions, failedPayments, refunds, affiliateCommissions: 0, advertisingRevenue: 0, monthly: monthlyRows });
+  try {
+    const start = monthStart();
+    let websiteRows;
+    let externalRows;
+    let paidSubscribers = 0;
+    let transactions = 0;
+    let failedPayments = 0;
+    let refunds = 0;
+    let settings = memoryState.settings;
+    let plans = memoryState.plans;
+    if (isDbReady()) {
+      [websiteRows, externalRows, paidSubscribers, transactions, failedPayments, refunds, settings, plans] = await Promise.all([
+        Payment.find({ status: "paid", gateway: { $in: ["paypal", "stripe", "flutterwave"] } }).select("amount currency createdAt").lean(),
+        RevenueTransaction.find({ source: { $in: ["affiliate", "advertising", "direct_ad"] }, status: "paid" }).select("net amount currency occurredAt").lean(),
+        Subscription.countDocuments({ status: "active" }),
+        Payment.countDocuments(),
+        Payment.countDocuments({ status: "failed" }),
+        Payment.countDocuments({ status: "refunded" }),
+        BusinessSettings.findOne({ key: "default" }).lean(),
+        Plan.find({ active: true }).select("interval momoPriceRwf").lean()
+      ]);
+    } else {
+      websiteRows = memoryState.payments.filter((row) => row.status === "paid" && ["paypal", "stripe", "flutterwave"].includes(row.gateway));
+      externalRows = memoryState.revenueTransactions.filter((row) => row.status === "paid");
+      transactions = memoryState.payments.length;
+      failedPayments = memoryState.payments.filter((row) => row.status === "failed").length;
+      refunds = memoryState.payments.filter((row) => row.status === "refunded").length;
+    }
+
+    const groupCurrencies = (rows, dateField) => {
+      const totals = new Map();
+      for (const row of rows || []) {
+        const currency = String(row.currency || "USD").toUpperCase();
+        const amount = Number(row.net ?? row.amount ?? 0);
+        const occurredAt = new Date(row[dateField] || row.createdAt || 0);
+        const entry = totals.get(currency) || { currency, total: 0, monthToDate: 0 };
+        entry.total += Number.isFinite(amount) ? amount : 0;
+        if (occurredAt >= start) entry.monthToDate += Number.isFinite(amount) ? amount : 0;
+        totals.set(currency, entry);
+      }
+      return [...totals.values()].sort((a, b) => a.currency.localeCompare(b.currency));
+    };
+
+    const websiteRevenue = groupCurrencies(websiteRows, "createdAt");
+    const externalPayouts = groupCurrencies(externalRows, "occurredAt");
+    const momoRecipientConfigured = Boolean(settings?.momoCountry && settings?.momoNetwork && settings?.momoAccountName && settings?.momoAccountPhone);
+    res.json({
+      websiteRevenue,
+      externalPayouts,
+      manualPayoutRecords: true,
+      paidSubscribers,
+      transactions,
+      failedPayments,
+      refunds,
+      pendingExternalPayouts: isDbReady()
+        ? await RevenueTransaction.countDocuments({ source: { $in: ["affiliate", "advertising", "direct_ad"] }, status: "pending" })
+        : memoryState.revenueTransactions.filter((row) => row.status === "pending").length,
+      channels: {
+        paypalCheckoutReady: isPaypalConfigured(),
+        paypalAccountReference: settings?.paypalAccountEmail || process.env.PAYPAL_ACCOUNT_EMAIL || "",
+        stripeCheckoutReady: Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET && process.env.APP_BASE_URL),
+        flutterwaveMomoCheckoutReady: isFlutterwaveConfigured() && plans.some((plan) => (plan.interval || "monthly") === "one-time" && Number.isInteger(Number(plan.momoPriceRwf)) && Number(plan.momoPriceRwf) > 0),
+        momoRecipientConfigured,
+        momoCountry: settings?.momoCountry || "",
+        momoNetwork: settings?.momoNetwork || "",
+        momoCurrency: settings?.momoCurrency || "RWF",
+        momoAccountName: settings?.momoAccountName || "",
+        momoAccountPhone: settings?.momoAccountPhone || "",
+        adNetworkTags: {
+          adsense: Boolean(settings?.adsensePublisherId),
+          propellerAds: Boolean(settings?.propellerAdsCode),
+          adsterra: Boolean(settings?.adsterraCode)
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Unable to load revenue and channel status." });
+  }
 });
 
 router.get("/payments/export", async (req, res) => {
