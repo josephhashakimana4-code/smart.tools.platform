@@ -7,6 +7,8 @@ const ApiSubscription = require("../models/ApiSubscription");
 const Referral = require("../models/Referral");
 const DirectAdLead = require("../models/DirectAdLead");
 const BusinessSettings = require("../models/BusinessSettings");
+const { isPaypalConfigured, paypalRequest, amountString, currencyCode, getPaypalPlanId, verifyAmount } = require("../utils/paypal");
+const { fulfillPaypalPayment } = require("../utils/paymentFulfillment");
 
 const router = express.Router();
 
@@ -24,6 +26,103 @@ function makeApiKey() {
 
 function isStripeConfigured() {
   return Boolean(process.env.STRIPE_SECRET_KEY && process.env.APP_BASE_URL);
+}
+
+function paymentProviders() {
+  const paypal = isPaypalConfigured();
+  return { paypal, stripe: !paypal && isStripeConfigured() };
+}
+
+function checkoutReturnUrl(status) {
+  return `${process.env.APP_BASE_URL}/pricing.html?checkout=${status}&gateway=paypal`;
+}
+
+async function createPaypalOrder({ payment, plan }) {
+  const currency = currencyCode(plan.currency);
+  return paypalRequest("/v2/checkout/orders", {
+    method: "POST",
+    requestId: `sth-order-${payment._id}`,
+    body: {
+      intent: "CAPTURE",
+      purchase_units: [{
+        reference_id: String(payment._id),
+        custom_id: String(payment._id),
+        invoice_id: `sth-${payment._id}`,
+        description: `${plan.name} - Smart Tools Hub`,
+        amount: { currency_code: currency, value: amountString(plan.price) }
+      }],
+      application_context: {
+        brand_name: "Smart Tools Hub",
+        user_action: "PAY_NOW",
+        shipping_preference: "NO_SHIPPING",
+        return_url: checkoutReturnUrl("success"),
+        cancel_url: checkoutReturnUrl("cancelled")
+      }
+    }
+  });
+}
+
+async function createPaypalSubscription({ payment, plan, email }) {
+  const paypalPlanId = await getPaypalPlanId(plan);
+  return paypalRequest("/v1/billing/subscriptions", {
+    method: "POST",
+    requestId: `sth-subscription-${payment._id}`,
+    body: {
+      plan_id: paypalPlanId,
+      custom_id: String(payment._id),
+      subscriber: { email_address: email },
+      application_context: {
+        brand_name: "Smart Tools Hub",
+        user_action: "SUBSCRIBE_NOW",
+        shipping_preference: "NO_SHIPPING",
+        return_url: checkoutReturnUrl("success"),
+        cancel_url: checkoutReturnUrl("cancelled")
+      }
+    }
+  });
+}
+
+async function capturePaypalOrder(payment) {
+  let order;
+  try {
+    order = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(payment.providerSessionId)}/capture`, {
+      method: "POST",
+      requestId: `sth-capture-${payment.providerSessionId}`,
+      body: {}
+    });
+  } catch (error) {
+    // A browser return and a webhook may try to finalize the same order at once.
+    // Read the order after a capture conflict and only fulfill a completed order.
+    try {
+      order = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(payment.providerSessionId)}`);
+    } catch {
+      throw error;
+    }
+    if (order.status !== "COMPLETED") return payment;
+  }
+  if (order.status !== "COMPLETED") return payment;
+  const purchase = order.purchase_units?.[0];
+  const capture = purchase?.payments?.captures?.find((item) => item.status === "COMPLETED");
+  if (purchase?.custom_id !== String(payment._id) || !capture ||
+    !verifyAmount(capture.amount, payment.amount, payment.currency)) {
+    throw new Error("PayPal order details did not match the pending payment.");
+  }
+  return fulfillPaypalPayment(payment, { customerId: order.payer?.payer_id, captureId: capture.id });
+}
+
+async function confirmPaypalSubscription(payment, subscriptionId) {
+  const subscription = await paypalRequest(`/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}`);
+  if (subscription.id !== payment.providerSubscriptionId || subscription.custom_id !== String(payment._id)) {
+    throw new Error("PayPal subscription details did not match the pending payment.");
+  }
+  const lastPayment = subscription.billing_info?.last_payment;
+  if (subscription.status !== "ACTIVE" || !verifyAmount(lastPayment?.amount, payment.amount, payment.currency)) return payment;
+  return fulfillPaypalPayment(payment, {
+    customerId: subscription.subscriber?.payer_id,
+    receiptNumber: subscription.id,
+    currentPeriodStart: lastPayment.time ? new Date(lastPayment.time) : new Date(),
+    currentPeriodEnd: subscription.billing_info?.next_billing_time ? new Date(subscription.billing_info.next_billing_time) : undefined
+  });
 }
 
 async function createStripeCheckout({ payment, plan, email }) {
@@ -193,10 +292,14 @@ function publicSettings(settings) {
 router.get("/plans", async (req, res) => {
   try {
     const plans = isDbReady()
-      ? (await ensureDefaultPlans()) && (await Plan.find({ active: true }).sort({ price: 1, name: 1 }))
+      ? (await ensureDefaultPlans()) && (await Plan.find({ active: true }).select("-paypalProductId -paypalPlanId -paypalPlanAmount -paypalPlanCurrency -paypalPlanInterval").sort({ price: 1, name: 1 }))
       : defaultPlans();
     const settings = await getSettings();
-    res.json({ plans, settings: publicSettings(settings) });
+    res.json({
+      plans,
+      settings: publicSettings(settings),
+      paymentProviders: paymentProviders()
+    });
   } catch (err) {
     res.status(500).json({ message: "Failed to load plans." });
   }
@@ -221,8 +324,11 @@ router.post("/checkout-interest", async (req, res) => {
     if (!["monthly", "yearly", "one-time"].includes(plan.interval || "monthly")) {
       return res.status(400).json({ message: "This plan has an unsupported billing interval." });
     }
-    if (req.body.gateway !== "stripe") return res.status(400).json({ message: "Stripe is the supported production checkout gateway." });
-    if (!isStripeConfigured()) return res.status(503).json({ message: "Stripe checkout is not configured." });
+    const gateway = String(req.body.gateway || "");
+    if (!new Set(["stripe", "paypal"]).has(gateway)) return res.status(400).json({ message: "Choose Stripe or PayPal checkout." });
+    if (gateway === "stripe" && isPaypalConfigured()) return res.status(409).json({ message: "PayPal is the configured checkout method." });
+    if (gateway === "stripe" && !isStripeConfigured()) return res.status(503).json({ message: "Stripe checkout is not configured." });
+    if (gateway === "paypal" && !isPaypalConfigured()) return res.status(503).json({ message: "PayPal checkout needs API credentials and a registered webhook before it can accept payments." });
 
     const email = String(req.body.email || "").trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ message: "Enter a valid email address." });
@@ -231,21 +337,44 @@ router.post("/checkout-interest", async (req, res) => {
       customerName: String(req.body.name || "").trim(),
       customerEmail: email,
       planSlug: plan.slug,
-      gateway: "stripe",
+      gateway,
       amount: plan.price,
       currency: plan.currency,
       status: "pending",
       reference: `pending-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`
     });
-    const session = await createStripeCheckout({ payment, plan, email });
-    payment.providerSessionId = session.id;
-    payment.reference = session.id;
-    await payment.save();
+    let checkoutUrl;
+    try {
+      if (gateway === "stripe") {
+        const session = await createStripeCheckout({ payment, plan, email });
+        payment.providerSessionId = session.id;
+        payment.reference = session.id;
+        checkoutUrl = session.url;
+      } else if ((plan.interval || "monthly") === "one-time") {
+        const order = await createPaypalOrder({ payment, plan });
+        payment.providerSessionId = order.id;
+        payment.reference = order.id;
+        checkoutUrl = order.links?.find((link) => link.rel === "approve")?.href;
+      } else {
+        const subscription = await createPaypalSubscription({ payment, plan, email });
+        payment.providerSessionId = subscription.id;
+        payment.providerSubscriptionId = subscription.id;
+        payment.reference = subscription.id;
+        checkoutUrl = subscription.links?.find((link) => link.rel === "approve")?.href;
+      }
+      if (!checkoutUrl) throw new Error("The payment provider did not return an approval link.");
+      await payment.save();
+    } catch (error) {
+      payment.status = "failed";
+      payment.failedAt = new Date();
+      await payment.save();
+      throw error;
+    }
 
     res.status(201).json({
       success: true,
       payment,
-      checkoutUrl: session.url
+      checkoutUrl
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to start checkout." });
@@ -289,11 +418,26 @@ router.post("/api-subscriptions", async (req, res) => {
 
 router.get("/checkout-result", async (req, res) => {
   try {
+    const paypalOrderId = String(req.query.token || req.query.paypal_order_id || "");
+    const paypalSubscriptionId = String(req.query.subscription_id || req.query.paypal_subscription_id || "");
     const reference = String(req.query.session_id || "");
-    const payment = await Payment.findOne({ providerSessionId: reference });
+    let payment;
+    if (paypalOrderId) {
+      payment = await Payment.findOne({ gateway: "paypal", providerSessionId: paypalOrderId });
+      if (payment?.status === "pending") payment = await capturePaypalOrder(payment);
+    } else if (paypalSubscriptionId) {
+      payment = await Payment.findOne({ gateway: "paypal", providerSubscriptionId: paypalSubscriptionId });
+      if (payment?.status === "pending") payment = await confirmPaypalSubscription(payment, paypalSubscriptionId);
+    } else {
+      payment = await Payment.findOne({ gateway: "stripe", providerSessionId: reference });
+    }
     if (!payment) return res.status(404).json({ message: "Checkout session not found." });
+    if (payment.gateway === "paypal" && payment.status === "paid" && !payment.fulfilledAt) {
+      payment = await fulfillPaypalPayment(payment);
+    }
+    const entitlementReference = payment.providerSessionId;
     const subscription = payment.status === "paid"
-      ? await ApiSubscription.findOne({ paymentReference: reference })
+      ? await ApiSubscription.findOne({ paymentReference: entitlementReference })
       : null;
     res.json({ status: payment.status, planSlug: payment.planSlug, apiKey: subscription?.apiKey || null });
   } catch (err) {

@@ -1,12 +1,10 @@
 const crypto = require("crypto");
 const Payment = require("../models/Payment");
-const Plan = require("../models/Plan");
 const User = require("../models/User");
 const Subscription = require("../models/Subscription");
 const ApiSubscription = require("../models/ApiSubscription");
 const { sendPaymentReceipt } = require("../utils/email");
-
-function makeApiKey() { return `sth_${crypto.randomBytes(18).toString("hex")}`; }
+const { activateEntitlement } = require("../utils/paymentFulfillment");
 
 function signatureMatches(payload, signature) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -24,47 +22,6 @@ function signatureMatches(payload, signature) {
 }
 
 function stripeTime(value) { return value ? new Date(value * 1000) : undefined; }
-
-async function activateEntitlement(payment, subscriptionData = {}) {
-  const plan = await Plan.findOne({ slug: payment.planSlug, active: true });
-  if (!plan) return;
-  const reference = payment.providerSessionId;
-  const subscription = await Subscription.findOneAndUpdate(
-    { paymentReference: reference },
-    { $set: {
-      customerEmail: payment.customerEmail,
-      planSlug: plan.slug,
-      status: subscriptionData.status || "active",
-      providerCustomerId: subscriptionData.customer || payment.providerCustomerId,
-      providerSubscriptionId: subscriptionData.id || payment.providerSubscriptionId,
-      currentPeriodStart: stripeTime(subscriptionData.current_period_start) || payment.currentPeriodStart,
-      currentPeriodEnd: stripeTime(subscriptionData.current_period_end) || payment.currentPeriodEnd,
-      cancelAtPeriodEnd: Boolean(subscriptionData.cancel_at_period_end)
-    }, $setOnInsert: { paymentReference: reference } },
-    { upsert: true, new: true }
-  );
-  const user = await User.findOne({ email: payment.customerEmail });
-  if (user) {
-    user.plan = plan.slug;
-    user.planStartDate = subscription.currentPeriodStart || new Date();
-    user.planEndDate = subscription.currentPeriodEnd;
-    user.subscriptionStatus = subscription.status;
-    user.stripeCustomerId = subscription.providerCustomerId;
-    user.stripeSubscriptionId = subscription.providerSubscriptionId;
-    await user.save();
-    await Subscription.updateOne({ _id: subscription._id }, { $set: { userId: user._id } });
-  }
-  if (Number(plan.apiLimit) > 0) {
-    const apiSubscription = await ApiSubscription.findOneAndUpdate(
-      { paymentReference: reference },
-      { $set: { ownerName: payment.customerName, ownerEmail: payment.customerEmail, planSlug: plan.slug, dailyLimit: plan.apiLimit, status: "active" },
-        $setOnInsert: { apiKey: makeApiKey(), paymentReference: reference } },
-      { upsert: true, new: true }
-    );
-    return apiSubscription?.apiKey;
-  }
-  return null;
-}
 
 async function updateSubscriptionState(providerSubscriptionId, status, eventData) {
   const subscription = await Subscription.findOneAndUpdate(

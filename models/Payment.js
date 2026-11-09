@@ -22,6 +22,7 @@ const paymentSchema = new mongoose.Schema({
   providerSubscriptionId: { type: String, index: true, sparse: true },
   providerCustomerId: { type: String, index: true, sparse: true },
   providerPaymentIntentId: { type: String, index: true, sparse: true },
+  providerEventId: { type: String, unique: true, sparse: true },
   latestInvoiceId: { type: String, index: true, sparse: true },
   receiptNumber: { type: String, index: true, sparse: true },
   currentPeriodStart: Date,

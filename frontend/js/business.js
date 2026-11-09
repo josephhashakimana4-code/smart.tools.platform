@@ -1,4 +1,5 @@
 const BUSINESS_API_BASE = window.location.protocol === "file:" ? "http://localhost:5000" : window.location.origin;
+let preferredCheckoutGateway = "";
 
 async function postBusiness(path, body) {
   const res = await apiFetch(`${BUSINESS_API_BASE}${path}`, {
@@ -50,6 +51,38 @@ function setPlanOptions(select, plans, emptyMessage) {
   });
 }
 
+function setPaymentProviders(select, providers = {}) {
+  const available = [
+    ...(providers.paypal ? [{ value: "paypal", label: "Pay with PayPal" }] : []),
+    ...(providers.stripe ? [{ value: "stripe", label: "Secure card checkout (Stripe)" }] : [])
+  ];
+  preferredCheckoutGateway = available[0]?.value || "";
+  if (!select) return;
+  select.replaceChildren();
+  if (!available.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Checkout is not configured yet";
+    option.disabled = true;
+    option.selected = true;
+    select.appendChild(option);
+    select.disabled = true;
+    const submit = document.querySelector("#checkoutForm button[type='submit']");
+    if (submit) submit.disabled = true;
+    setFormMessage("checkoutMessage", "Online checkout is not configured yet. Please contact the site owner.", true);
+    return;
+  }
+  select.disabled = false;
+  const submit = document.querySelector("#checkoutForm button[type='submit']");
+  if (submit) submit.disabled = false;
+  available.forEach(({ value, label }) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+}
+
 async function loadPlans() {
   const grid = document.getElementById("plansGrid");
   const checkoutPlan = document.getElementById("checkoutPlan");
@@ -63,6 +96,7 @@ async function loadPlans() {
     }
 
     const plans = Array.isArray(data.plans) ? data.plans : [];
+    setPaymentProviders(document.getElementById("checkoutGateway"), data.paymentProviders);
     if (grid) {
       grid.replaceChildren();
       plans.forEach((plan) => {
@@ -97,7 +131,11 @@ async function loadPlans() {
       }
     }
 
-    setPlanOptions(checkoutPlan, plans, "No plans are currently available");
+    setPlanOptions(
+      checkoutPlan,
+      plans.filter((plan) => Number(plan.price || 0) > 0),
+      "No paid plans are currently available"
+    );
     setPlanOptions(
       apiPlan,
       plans.filter((plan) => Number(plan.apiLimit || 0) > 0),
@@ -188,7 +226,7 @@ async function handleApiSubscription(event) {
   } catch (err) {
     if (err.status === 409 && err.data?.requiresCheckout) {
       try {
-        const checkout = await postBusiness("/api/business/checkout-interest", { name, email, planSlug, gateway: "stripe" });
+        const checkout = await postBusiness("/api/business/checkout-interest", { name, email, planSlug, gateway: preferredCheckoutGateway });
         if (!checkout.checkoutUrl) {
           throw new Error("Checkout is unavailable because the payment provider did not return a checkout link.");
         }
@@ -209,10 +247,18 @@ document.addEventListener("DOMContentLoaded", () => {
   if (params.get("checkout") === "cancelled") {
     setFormMessage("checkoutMessage", "Checkout was cancelled. No payment was completed.");
   }
-  if (params.get("checkout") === "success" && params.get("session_id")) {
-    const sessionId = params.get("session_id");
+  const paypalOrderId = params.get("token") || params.get("paypal_order_id");
+  const paypalSubscriptionId = params.get("subscription_id") || params.get("paypal_subscription_id");
+  const stripeSessionId = params.get("session_id");
+  if (params.get("checkout") === "success" && (paypalOrderId || paypalSubscriptionId || stripeSessionId)) {
+    const resultQuery = new URLSearchParams();
+    if (paypalOrderId) resultQuery.set("token", paypalOrderId);
+    if (paypalSubscriptionId) resultQuery.set("subscription_id", paypalSubscriptionId);
+    if (stripeSessionId) resultQuery.set("session_id", stripeSessionId);
+    let attempts = 0;
     const checkStatus = async () => {
-      const response = await fetch(`${BUSINESS_API_BASE}/api/business/checkout-result?session_id=${encodeURIComponent(sessionId)}`);
+      attempts += 1;
+      const response = await fetch(`${BUSINESS_API_BASE}/api/business/checkout-result?${resultQuery.toString()}`);
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Unable to confirm this checkout.");
       if (data.status === "paid") {
@@ -226,7 +272,11 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       setFormMessage("checkoutMessage", "Payment is not confirmed yet. Please check again shortly.");
-      window.setTimeout(checkStatus, 2500);
+      if (attempts < 20) {
+        window.setTimeout(checkStatus, Math.min(2500 * attempts, 15000));
+      } else {
+        setFormMessage("checkoutMessage", "Payment is still processing. Check your email or refresh this page later.");
+      }
     };
     checkStatus().catch(() => {
       setFormMessage("checkoutMessage", "We could not confirm this checkout. Please contact support before trying again.", true);

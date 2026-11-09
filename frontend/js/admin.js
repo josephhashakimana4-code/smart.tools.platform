@@ -1162,7 +1162,7 @@ async function cancelPayment(button) {
 
 async function refundPayment(button) {
   const id = button.dataset.id;
-  if (!id || !window.confirm("Refund this payment through Stripe?")) return;
+  if (!id || !window.confirm("Refund this payment through its payment provider?")) return;
   try {
     await api.post(`/api/admin/payments/${encodeURIComponent(id)}/refund`, {});
     await loadDashboard();

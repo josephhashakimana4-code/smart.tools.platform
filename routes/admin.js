@@ -17,11 +17,13 @@ const Plan = require("../models/Plan");
 const Payment = require("../models/Payment");
 const Subscription = require("../models/Subscription");
 const ApiSubscription = require("../models/ApiSubscription");
+const User = require("../models/User");
 const Referral = require("../models/Referral");
 const DirectAdLead = require("../models/DirectAdLead");
 const BusinessSettings = require("../models/BusinessSettings");
 const Affiliate = require("../models/Affiliate");
 const { getFallbackTools } = require("../config/fallbackTools");
+const { paypalRequest } = require("../utils/paypal");
 
 const router = express.Router();
 
@@ -822,19 +824,50 @@ router.post("/payments/:id/cancel", async (req, res) => {
   if (!isDbReady()) return res.status(503).json({ message: "Payment cancellation requires a connected database." });
   const payment = await Payment.findById(req.params.id);
   if (!payment) return res.status(404).json({ message: "Payment not found." });
-  if (payment.providerSubscriptionId) await stripeRequest(`subscriptions/${payment.providerSubscriptionId}`, { cancel_at_period_end: "true" });
-  payment.cancelAtPeriodEnd = true;
+  if (!payment.providerSubscriptionId) return res.status(409).json({ message: "This payment does not have a cancellable subscription." });
+  if (payment.gateway === "stripe") {
+    await stripeRequest(`subscriptions/${payment.providerSubscriptionId}`, { cancel_at_period_end: "true" });
+    payment.cancelAtPeriodEnd = true;
+    await Subscription.updateMany({ providerSubscriptionId: payment.providerSubscriptionId }, { $set: { cancelAtPeriodEnd: true } });
+  } else if (payment.gateway === "paypal") {
+    await paypalRequest(`/v1/billing/subscriptions/${encodeURIComponent(payment.providerSubscriptionId)}/cancel`, {
+      method: "POST",
+      body: { reason: "Cancelled by the Smart Tools Hub administrator." }
+    });
+    payment.cancelAtPeriodEnd = false;
+    await Subscription.updateMany({ providerSubscriptionId: payment.providerSubscriptionId }, { $set: { status: "cancelled", cancelledAt: new Date(), cancelAtPeriodEnd: false } });
+    await ApiSubscription.updateMany({ ownerEmail: payment.customerEmail, planSlug: payment.planSlug }, { $set: { status: "paused" } });
+    await User.updateMany({ email: payment.customerEmail }, { $set: { subscriptionStatus: "cancelled" } });
+  } else {
+    return res.status(409).json({ message: "This payment provider does not support subscription cancellation here." });
+  }
   await payment.save();
-  await Subscription.updateMany({ providerSubscriptionId: payment.providerSubscriptionId }, { $set: { cancelAtPeriodEnd: true } });
   res.json(payment);
 });
 
 router.post("/payments/:id/refund", async (req, res) => {
-  if (!isDbReady()) return res.status(503).json({ message: "Refunds require a connected database and a refundable Stripe payment." });
+  if (!isDbReady()) return res.status(503).json({ message: "Refunds require a connected database." });
   const payment = await Payment.findById(req.params.id);
   if (!payment) return res.status(404).json({ message: "Payment not found." });
-  if (!payment.providerPaymentIntentId) return res.status(409).json({ message: "No refundable Stripe payment intent is available yet." });
-  await stripeRequest("refunds", { payment_intent: payment.providerPaymentIntentId });
+  if (payment.gateway === "stripe") {
+    if (!payment.providerPaymentIntentId) return res.status(409).json({ message: "No refundable Stripe payment intent is available yet." });
+    await stripeRequest("refunds", { payment_intent: payment.providerPaymentIntentId });
+  } else if (payment.gateway === "paypal") {
+    const saleId = payment.latestInvoiceId || (payment.providerSubscriptionId ? payment.providerPaymentIntentId : "");
+    if (saleId) {
+      await paypalRequest(`/v1/payments/sale/${encodeURIComponent(saleId)}/refund`, { method: "POST", body: {} });
+    } else if (payment.providerPaymentIntentId) {
+      await paypalRequest(`/v2/payments/captures/${encodeURIComponent(payment.providerPaymentIntentId)}/refund`, {
+        method: "POST",
+        requestId: `sth-refund-${payment.providerPaymentIntentId}`,
+        body: {}
+      });
+    } else {
+      return res.status(409).json({ message: "No refundable PayPal transaction is recorded for this payment." });
+    }
+  } else {
+    return res.status(409).json({ message: "This payment provider does not support refunds here." });
+  }
   payment.status = "refunded";
   payment.refundedAt = new Date();
   await payment.save();

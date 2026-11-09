@@ -42,6 +42,10 @@ JWT_REFRESH_SECRET=<random-256-bit-key>
 STRIPE_SECRET_KEY=sk_live_xxx
 STRIPE_PUBLISHABLE_KEY=pk_live_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
+PAYPAL_CLIENT_ID=your_paypal_rest_app_client_id
+PAYPAL_CLIENT_SECRET=your_paypal_rest_app_secret
+PAYPAL_API_BASE_URL=https://api-m.paypal.com
+PAYPAL_WEBHOOK_ID=your_registered_paypal_webhook_id
 SENTRY_DSN=https://xxx@sentry.io/yyy
 REDIS_URL=redis://username:password@host:port
 ```

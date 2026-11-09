@@ -34,10 +34,12 @@ if (process.env.SENTRY_DSN) {
 
 const app = express();
 const stripeWebhook = require("./routes/stripeWebhook");
+const paypalWebhook = require("./routes/paypalWebhook");
 
 // Stripe signature verification requires the exact, unparsed request body. This
 // route must be registered before the application-wide JSON parser.
 app.post("/api/business/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhook);
+app.post("/api/business/webhooks/paypal", express.raw({ type: "application/json" }), paypalWebhook);
 
 
 // Automatic temporary file cleanup

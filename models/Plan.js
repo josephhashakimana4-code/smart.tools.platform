@@ -9,6 +9,11 @@ const planSchema = new mongoose.Schema({
   dailyLimit: { type: Number, default: 100 },
   apiLimit: { type: Number, default: 100 },
   adsRemoved: { type: Boolean, default: false },
+  paypalProductId: String,
+  paypalPlanId: String,
+  paypalPlanAmount: String,
+  paypalPlanCurrency: String,
+  paypalPlanInterval: String,
   features: [String],
   active: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }

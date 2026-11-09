@@ -71,6 +71,19 @@ services:
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
 
+      # PayPal checkout and verified webhook processing
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+
+      - key: PAYPAL_API_BASE_URL
+        sync: false
+
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+
       # REDIS CACHE (optional, for session management)
       - key: REDIS_URL
         sync: false
