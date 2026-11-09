@@ -1,0 +1,35 @@
+.video-hero { min-height: 390px; padding: 20px 24px 64px; color: #fff; background: radial-gradient(circle at 80% 12%,rgba(64,191,178,.35),transparent 28%),linear-gradient(124deg,#10283a,#0e5a61 62%,#117a70); }
+.video-hero .top-nav { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:20px; max-width:1160px; margin:0 auto; }
+.video-hero .top-nav a { color:#e8fffb; text-decoration:none; font-weight:700; }
+.video-hero-copy { max-width:1160px; margin:68px auto 0; }
+.video-eyebrow { color:#0f766e; font-size:12px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }
+.video-hero .video-eyebrow { color:#9af1dd; }
+.video-hero h1 { max-width:740px; margin:10px 0 12px; font-size:clamp(40px,7vw,72px); line-height:1.02; }
+.video-hero-copy p { max-width:640px; color:#d4e9ec; font-size:18px; line-height:1.6; }
+.video-hero-link { display:inline-flex; gap:10px; margin-top:12px; padding:13px 17px; border-radius:7px; background:#fff; color:#123047; font-weight:900; text-decoration:none; }
+.video-page { max-width:1160px; margin:auto; padding:38px 24px 64px; }
+.video-intro { display:flex; align-items:end; justify-content:space-between; gap:24px; margin-bottom:24px; }
+.video-intro h2,.video-business-cta h2 { margin:8px 0 0; color:#123047; font-size:clamp(24px,3vw,36px); }
+.video-intro>p { max-width:430px; margin:0; color:#586879; line-height:1.6; }
+.video-controls { display:grid; grid-template-columns:minmax(0,1fr) minmax(200px,.4fr) auto; gap:14px; align-items:end; margin:24px 0; padding:16px; border:1px solid #d9e3ed; border-radius:10px; background:#f7fafc; }
+.video-controls label { display:grid; gap:6px; color:#334155; font-size:13px; font-weight:800; }
+.video-controls input,.video-controls select { min-height:44px; width:100%; border:1px solid #cbd5e1; border-radius:7px; background:#fff; padding:9px 12px; color:#142c3e; font:inherit; }
+.video-controls>span { padding:0 4px 13px; color:#64748b; font-size:13px; }
+.video-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
+.video-card { overflow:hidden; border:1px solid #d9e3ed; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(14,38,57,.08); }
+.video-card video { display:block; width:100%; aspect-ratio:16/9; background:#081722; object-fit:cover; }
+.video-card-copy { display:grid; gap:8px; padding:18px 20px 20px; }
+.video-category { color:#0f766e; font-size:11px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+.video-card h3 { margin:0; color:#142c3e; font-size:21px; }
+.video-card p { margin:0; color:#596b7b; line-height:1.55; }
+.video-views { color:#728196; }
+.video-tool-link { display:inline-flex; justify-self:start; margin:0 20px 18px; padding:10px 13px; border-radius:7px; background:#e9f8f5; color:#0f766e; font-weight:900; text-decoration:none; }
+.video-status { grid-column:1/-1; margin:0; padding:32px; border:1px dashed #bccbd7; border-radius:12px; color:#55677a; text-align:center; }
+.video-business-cta { display:flex; align-items:center; justify-content:space-between; gap:24px; margin:34px 0 20px; padding:24px; border:1px solid #cde7e2; border-radius:12px; background:#f2fbf9; }
+.video-business-cta p { margin:8px 0 0; color:#526175; }
+.video-business-cta a { flex:none; padding:13px 17px; border-radius:7px; background:#0f766e; color:white; font-weight:900; text-decoration:none; }
+.video-disclosure { padding-top:16px; border-top:1px solid #e0e7ee; color:#667588; font-size:13px; line-height:1.55; }
+.video-disclosure p { margin:6px 0; }
+.video-footer { display:flex; justify-content:center; flex-wrap:wrap; gap:22px; padding:24px; background:#10283a; }
+.video-footer a { color:#d3e9eb; text-decoration:none; }
+@media(max-width:700px) { .video-hero .top-nav { justify-content:center; gap:12px 16px; } .video-hero-copy { margin-top:52px; } .video-page { padding:28px 16px 48px; } .video-intro,.video-business-cta { align-items:flex-start; flex-direction:column; } .video-grid,.video-controls { grid-template-columns:1fr; } .video-controls>span { padding:0; } .video-business-cta a { width:100%; text-align:center; } }

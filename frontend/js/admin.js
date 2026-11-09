@@ -17,6 +17,7 @@ const state = {
   affiliates: [],
   businessSettings: {},
   blogPosts: [],
+  videos: [],
   subscribers: [],
   contacts: [],
   directAdLeads: [],
@@ -31,6 +32,7 @@ const state = {
   editingAffiliateId: null,
   editingAdId: null,
   editingBlogPostId: null,
+  editingVideoId: null,
   editingPlanId: null,
   editingSubscriptionId: null
 };
@@ -65,6 +67,8 @@ const els = {
   businessSettingsForm: $("businessSettingsForm"),
   blogPostForm: $("blogPostForm"),
   blogPostTable: $("blogPostTable"),
+  videoForm: $("videoForm"),
+  videoTable: $("videoTable"),
   subscriberTable: $("subscriberTable"),
   contactTable: $("contactTable"),
   directAdLeadTable: $("directAdLeadTable"),
@@ -317,13 +321,14 @@ async function loadDashboard() {
   setText("dashboardStatus", "Refreshing live data...");
 
   try {
-    const [stats, tools, ads, affiliates, businessSettings, blogPosts, subscribers, contacts, directAdLeads, plans, payments, apiSubscriptions, revenue] = await Promise.all([
+    const [stats, tools, ads, affiliates, businessSettings, blogPosts, videos, subscribers, contacts, directAdLeads, plans, payments, apiSubscriptions, revenue] = await Promise.all([
       api.get("/api/admin/stats"),
       api.get("/api/admin/tools"),
       api.get("/api/admin/ads"),
       api.get("/api/admin/affiliates"),
       api.get("/api/admin/business-settings"),
       api.get("/api/admin/blog-posts"),
+      api.get("/api/admin/videos"),
       api.get("/api/admin/subscribers"),
       api.get("/api/admin/contacts"),
       api.get("/api/admin/direct-ad-leads"),
@@ -339,6 +344,7 @@ async function loadDashboard() {
     state.affiliates = Array.isArray(affiliates) ? affiliates : [];
     state.businessSettings = businessSettings || {};
     state.blogPosts = Array.isArray(blogPosts) ? blogPosts : [];
+    state.videos = Array.isArray(videos) ? videos : [];
     state.subscribers = Array.isArray(subscribers) ? subscribers : [];
     state.contacts = Array.isArray(contacts) ? contacts : [];
     state.directAdLeads = Array.isArray(directAdLeads) ? directAdLeads : [];
@@ -359,6 +365,7 @@ async function loadDashboard() {
     renderAds();
     renderBusinessSettings();
     renderBlogPosts();
+    renderVideos();
     renderSubscribers();
     renderContacts();
     renderDirectAdLeads();
@@ -842,6 +849,68 @@ async function saveBlogPost(event) {
     els.blogPostForm?.reset();
     state.editingBlogPostId = null;
     setMessage("Blog post saved.");
+    await loadDashboard();
+  } catch (err) {
+    setMessage(err.message, true);
+  }
+}
+
+function renderVideos() {
+  if (!els.videoTable) return;
+  if (!state.videos.length) {
+    els.videoTable.innerHTML = '<tr><td colspan="4" class="empty-state">No tutorials yet. Add a video you own or have permission to publish.</td></tr>';
+    return;
+  }
+  els.videoTable.innerHTML = state.videos.map((video) => `
+    <tr>
+      <td>${escapeHtml(video.title || "-")}</td>
+      <td><span class="badge ${video.status === "published" ? "" : "inactive"}">${escapeHtml(video.status || "draft")}</span></td>
+      <td>${number(video.views)}</td>
+      <td class="actions-cell">
+        <button class="small-btn secondary-btn edit-video" type="button" data-id="${escapeHtml(video._id)}">Edit</button>
+        <button class="danger-btn small-btn delete-video" type="button" data-id="${escapeHtml(video._id)}">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function videoFormData() {
+  return {
+    title: text($("videoTitle")?.value),
+    slug: text($("videoSlug")?.value) || slugify($("videoTitle")?.value),
+    videoUrl: text($("videoUrl")?.value),
+    thumbnailUrl: text($("videoThumbnail")?.value),
+    toolUrl: text($("videoToolUrl")?.value),
+    toolLabel: text($("videoToolLabel")?.value) || "Try the related tool",
+    category: text($("videoCategory")?.value) || "Tutorial",
+    description: text($("videoDescription")?.value),
+    status: $("videoStatus")?.value || "draft"
+  };
+}
+
+async function saveVideo(event) {
+  event.preventDefault();
+  try {
+    const data = videoFormData();
+    if (state.editingVideoId) {
+      await api.put(`/api/admin/videos/${encodeURIComponent(state.editingVideoId)}`, data);
+    } else {
+      await api.post("/api/admin/videos", data);
+    }
+    els.videoForm?.reset();
+    state.editingVideoId = null;
+    setMessage("Video saved. Publish it to show it in the public library.");
+    await loadDashboard();
+  } catch (err) {
+    setMessage(err.message, true);
+  }
+}
+
+async function deleteVideo(button) {
+  if (!window.confirm("Delete this video from the library?")) return;
+  try {
+    await api.delete(`/api/admin/videos/${encodeURIComponent(button.dataset.id)}`);
+    setMessage("Video deleted.");
     await loadDashboard();
   } catch (err) {
     setMessage(err.message, true);
@@ -1338,6 +1407,32 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const editVideoButton = event.target.closest(".edit-video");
+  if (editVideoButton) {
+    const video = state.videos.find((item) => item._id === editVideoButton.dataset.id);
+    if (video) {
+      state.editingVideoId = video._id;
+      $("videoTitle").value = video.title || "";
+      $("videoSlug").value = video.slug || "";
+      $("videoUrl").value = video.videoUrl || "";
+      $("videoThumbnail").value = video.thumbnailUrl || "";
+      $("videoToolUrl").value = video.toolUrl || "";
+      $("videoToolLabel").value = video.toolLabel || "Try the related tool";
+      $("videoCategory").value = video.category || "Tutorial";
+      $("videoDescription").value = video.description || "";
+      $("videoStatus").value = video.status || "draft";
+      showSection("content");
+      $("videoTitle").focus();
+    }
+    return;
+  }
+
+  const deleteVideoButton = event.target.closest(".delete-video");
+  if (deleteVideoButton) {
+    deleteVideo(deleteVideoButton);
+    return;
+  }
+
   const deleteSubscriberButton = event.target.closest(".delete-subscriber");
   if (deleteSubscriberButton) {
     deleteSubscriber(deleteSubscriberButton);
@@ -1375,6 +1470,7 @@ els.affiliateForm?.addEventListener("submit", saveAffiliate);
 els.adForm?.addEventListener("submit", saveAd);
 els.businessSettingsForm?.addEventListener("submit", saveBusinessSettings);
 els.blogPostForm?.addEventListener("submit", saveBlogPost);
+els.videoForm?.addEventListener("submit", saveVideo);
 els.planForm?.addEventListener("submit", savePlan);
 els.apiSubscriptionForm?.addEventListener("submit", saveApiSubscription);
 $("name")?.addEventListener("input", () => {

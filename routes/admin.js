@@ -7,6 +7,8 @@ const ConvertedFile = require("../models/ConvertedFile");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
 const SearchLog = require("../models/SearchLog");
 const Ad = require("../models/Ad");
+const Video = require("../models/Video");
+const memoryVideos = require("../utils/videoMemory");
 const BlogPost = require("../models/BlogPost");
 const Subscriber = require("../models/Subscriber");
 const Contact = require("../models/contact");
@@ -28,6 +30,7 @@ const memoryState = {
   ads: [],
   affiliates: [],
   blogPosts: [],
+  videos: memoryVideos,
   subscribers: [],
   contacts: [],
   plans: [],
@@ -503,6 +506,70 @@ router.delete("/blog-posts/:id", async (req, res) => {
   }
 
   await BlogPost.findByIdAndDelete(req.params.id);
+  res.json({ success: true });
+});
+
+/* =========================
+   VIDEO LIBRARY
+========================= */
+function isSafeVideoUrl(value) {
+  const url = String(value || "").trim();
+  return (url.startsWith("/") && !url.startsWith("//")) || /^https:\/\//i.test(url);
+}
+
+router.get("/videos", async (_req, res) => {
+  if (!isDbReady()) return res.json(memoryState.videos.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+  const videos = await Video.find().sort({ createdAt: -1 });
+  res.json(videos);
+});
+
+router.post("/videos", async (req, res) => {
+  try {
+    const payload = { ...req.body };
+    payload.slug = slugify(payload.slug || payload.title);
+    if (!payload.title || !payload.slug || !isSafeVideoUrl(payload.videoUrl)) {
+      return res.status(400).json({ message: "Add a title and a same-site or secure HTTPS video URL." });
+    }
+    if (payload.toolUrl && !isSafeVideoUrl(payload.toolUrl)) return res.status(400).json({ message: "Related tool links must be same-site paths or secure HTTPS URLs." });
+    if (!isDbReady()) {
+      const video = { _id: makeId(), ...payload, views: 0, createdAt: new Date().toISOString() };
+      memoryState.videos.push(video);
+      return res.status(201).json(video);
+    }
+    const video = await Video.create(payload);
+    res.status(201).json(video);
+  } catch (error) {
+    res.status(error.code === 11000 ? 409 : 400).json({ message: error.code === 11000 ? "That video slug already exists." : "Could not save video." });
+  }
+});
+
+router.put("/videos/:id", async (req, res) => {
+  try {
+    const payload = { ...req.body };
+    if (payload.slug) payload.slug = slugify(payload.slug);
+    if (payload.videoUrl && !isSafeVideoUrl(payload.videoUrl)) return res.status(400).json({ message: "Use a same-site path or secure HTTPS video URL." });
+    if (payload.toolUrl && !isSafeVideoUrl(payload.toolUrl)) return res.status(400).json({ message: "Related tool links must be same-site paths or secure HTTPS URLs." });
+    if (!isDbReady()) {
+      const index = memoryState.videos.findIndex((video) => video._id === req.params.id);
+      if (index === -1) return res.status(404).json({ message: "Video not found." });
+      memoryState.videos[index] = { ...memoryState.videos[index], ...payload };
+      return res.json(memoryState.videos[index]);
+    }
+    const video = await Video.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
+    if (!video) return res.status(404).json({ message: "Video not found." });
+    res.json(video);
+  } catch (error) {
+    res.status(error.code === 11000 ? 409 : 400).json({ message: error.code === 11000 ? "That video slug already exists." : "Could not update video." });
+  }
+});
+
+router.delete("/videos/:id", async (req, res) => {
+  if (!isDbReady()) {
+    const index = memoryState.videos.findIndex((video) => video._id === req.params.id);
+    if (index !== -1) memoryState.videos.splice(index, 1);
+    return res.json({ success: true });
+  }
+  await Video.findByIdAndDelete(req.params.id);
   res.json({ success: true });
 });
 

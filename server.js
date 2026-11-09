@@ -128,9 +128,7 @@ app.use(
           "'none'"
         ],
 
-        mediaSrc: [
-          "'self'"
-        ],
+        mediaSrc: ["'self'", "https:"],
 
             frameSrc: [
           "'self'"
@@ -382,6 +380,7 @@ const blogRoute=loadRoute("./routes/blog", "Blog service temporarily unavailable
 const businessRoute=loadRoute("./routes/business", "Business service temporarily unavailable");
 
 const adsRoute=loadRoute("./routes/ads", "Ads service temporarily unavailable");
+const videosRoute=loadRoute("./routes/videos", "Video service temporarily unavailable");
 
 
 
@@ -517,6 +516,11 @@ app.use(
 app.use(
   "/api/ads",
   adsRoute
+);
+
+app.use(
+  "/api/videos",
+  videosRoute.router || videosRoute
 );
 
 
@@ -691,6 +695,7 @@ const pages = [
   "admin.html",
   "blog.html",
   "blog-post.html",
+  "videos.html",
   "pricing.html",
   "advertise.html",
   "api-marketplace.html",

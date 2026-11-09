@@ -43,6 +43,12 @@ const smartPageOffers = {
     cta: "Browse tools",
     href: "index.html"
   },
+  "videos.html": {
+    title: "Sponsor practical video guides",
+    text: "Reach people learning how to use business and productivity tools. Ask about a direct sponsored placement.",
+    cta: "Sponsor a video",
+    href: "advertise.html"
+  },
   "contact.html": {
     title: "Work with Smart Tools Hub",
     text: "Ask about advertising, API access, partnerships, white-label licensing, or custom tool builds.",
