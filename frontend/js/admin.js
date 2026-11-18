@@ -307,6 +307,7 @@ async function logout() {
 
 function syncAdminBranding() {
   const brandName = state.businessSettings?.brandName || "Smart Tools Hub";
+  const logoUrl = state.businessSettings?.logoUrl || "/images/logo.svg";
 
   document.title = `Admin Dashboard | ${brandName}`;
   document.querySelectorAll("[data-admin-brand]").forEach((node) => {
@@ -316,6 +317,9 @@ function syncAdminBranding() {
   setText("dashboardStatus", `Connected to ${brandName}`);
   const adminBrand = document.querySelector("[data-admin-brand]");
   if (adminBrand) adminBrand.textContent = brandName;
+  document.querySelectorAll("[data-admin-logo]").forEach((node) => {
+    node.setAttribute("src", logoUrl);
+  });
 }
 
 async function loadDashboard() {

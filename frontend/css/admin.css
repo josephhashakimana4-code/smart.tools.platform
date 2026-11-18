@@ -48,9 +48,20 @@ body {
 
 .brand {
   display: grid;
-  gap: 4px;
+  grid-template-columns: 42px 1fr;
+  gap: 2px 10px;
+  align-items: center;
   padding-bottom: 12px;
   border-bottom: 1px solid #334155;
+}
+
+.brand [data-admin-logo] {
+  grid-row: 1 / 4;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: #fff;
+  object-fit: contain;
 }
 
 .brand span { color: #93c5fd; font-size: 13px; }

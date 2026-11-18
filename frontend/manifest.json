@@ -3,5 +3,13 @@
   "short_name": "SmartTools",
   "start_url": "/",
   "display": "standalone",
-  "description": "Free online productivity tools"
+  "description": "Free online productivity tools",
+  "icons": [
+    {
+      "src": "/images/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
 }

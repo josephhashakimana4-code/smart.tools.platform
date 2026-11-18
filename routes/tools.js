@@ -491,6 +491,154 @@ async function writeTextPdf(text, outputPath, title = "Converted Document") {
   fs.writeFileSync(outputPath, await pdfDoc.save({ useObjectStreams: true }));
 }
 
+async function convertPdfToDocxWithAdobe(pdfBuffer) {
+  const clientId = process.env.PDF_SERVICES_CLIENT_ID;
+  const clientSecret = process.env.PDF_SERVICES_CLIENT_SECRET;
+  const apiBase = "https://pdf-services.adobe.io";
+
+  if (!clientId || !clientSecret) {
+    const error = new Error("Adobe PDF Services credentials are not configured.");
+    error.code = "ADOBE_CREDENTIALS_MISSING";
+    throw error;
+  }
+
+  const readJson = async (response, step) => {
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch (_) {
+      // Adobe may return an empty response when a request is rejected.
+    }
+    if (!response.ok) {
+      const error = new Error("Adobe " + step + " request failed (" + response.status + ").");
+      error.code = "ADOBE_REQUEST_FAILED";
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  };
+
+  const tokenResponse = await fetch(apiBase + "/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret }),
+    signal: AbortSignal.timeout(30000)
+  });
+  const tokenPayload = await readJson(tokenResponse, "authentication");
+  if (!tokenPayload.access_token) {
+    const error = new Error("Adobe PDF Services did not return an access token.");
+    error.code = "ADOBE_AUTH_FAILED";
+    throw error;
+  }
+
+  const adobeHeaders = {
+    Authorization: "Bearer " + tokenPayload.access_token,
+    "x-api-key": clientId,
+    "Content-Type": "application/json"
+  };
+  const assetResponse = await fetch(apiBase + "/assets", {
+    method: "POST",
+    headers: adobeHeaders,
+    body: JSON.stringify({ mediaType: "application/pdf" }),
+    signal: AbortSignal.timeout(30000)
+  });
+  const asset = await readJson(assetResponse, "asset creation");
+  if (!asset.assetID || !asset.uploadUri) {
+    const error = new Error("Adobe PDF Services returned incomplete upload details.");
+    error.code = "ADOBE_ASSET_FAILED";
+    throw error;
+  }
+
+  const uploadResponse = await fetch(asset.uploadUri, {
+    method: "PUT",
+    headers: { "Content-Type": "application/pdf" },
+    body: pdfBuffer,
+    signal: AbortSignal.timeout(60000)
+  });
+  if (!uploadResponse.ok) {
+    const error = new Error("Adobe PDF upload failed (" + uploadResponse.status + ").");
+    error.code = "ADOBE_UPLOAD_FAILED";
+    throw error;
+  }
+
+  const jobResponse = await fetch(apiBase + "/operation/exportpdf", {
+    method: "POST",
+    headers: adobeHeaders,
+    body: JSON.stringify({ assetID: asset.assetID, targetFormat: "docx" }),
+    signal: AbortSignal.timeout(30000)
+  });
+  await readJson(jobResponse, "conversion job");
+  const location = jobResponse.headers.get("location");
+  if (!location) {
+    const error = new Error("Adobe PDF Services did not return a conversion status URL.");
+    error.code = "ADOBE_JOB_FAILED";
+    throw error;
+  }
+
+  const jobUrl = new URL(location, apiBase);
+  if (jobUrl.origin !== apiBase) {
+    const error = new Error("Adobe PDF Services returned an invalid status URL.");
+    error.code = "ADOBE_JOB_FAILED";
+    throw error;
+  }
+  const jobMatch = jobUrl.pathname.match(/\/operation\/exportpdf\/([^/]+)/);
+  if (!jobMatch) {
+    const error = new Error("Adobe PDF Services returned an invalid conversion job ID.");
+    error.code = "ADOBE_JOB_FAILED";
+    throw error;
+  }
+  const statusUrl = apiBase + "/operation/exportpdf/" + encodeURIComponent(jobMatch[1]) + "/status";
+  let downloadUri = "";
+  let jobStatus = "";
+
+  for (let attempt = 0; attempt < 45; attempt += 1) {
+    const statusResponse = await fetch(statusUrl, {
+      headers: adobeHeaders,
+      signal: AbortSignal.timeout(30000)
+    });
+    const statusPayload = await readJson(statusResponse, "conversion status");
+    jobStatus = String(statusPayload.status || "").toLowerCase();
+    if (jobStatus === "done") {
+      downloadUri = statusPayload.downloadUri || statusPayload.dowloadUri || "";
+      break;
+    }
+    if (jobStatus === "failed") {
+      const error = new Error("Adobe PDF Services could not convert this PDF.");
+      error.code = "ADOBE_CONVERSION_FAILED";
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+
+  if (!downloadUri) {
+    const error = new Error(jobStatus === "in progress"
+      ? "Adobe PDF Services is still processing this file. Please retry shortly."
+      : "Adobe PDF Services did not finish the conversion.");
+    error.code = "ADOBE_CONVERSION_TIMEOUT";
+    throw error;
+  }
+
+  const downloadUrl = new URL(downloadUri);
+  if (downloadUrl.protocol !== "https:") {
+    const error = new Error("Adobe PDF Services returned an invalid document URL.");
+    error.code = "ADOBE_DOWNLOAD_FAILED";
+    throw error;
+  }
+  const documentResponse = await fetch(downloadUrl, { signal: AbortSignal.timeout(60000) });
+  if (!documentResponse.ok) {
+    const error = new Error("Adobe DOCX download failed (" + documentResponse.status + ").");
+    error.code = "ADOBE_DOWNLOAD_FAILED";
+    throw error;
+  }
+  const docxBuffer = Buffer.from(await documentResponse.arrayBuffer());
+  if (docxBuffer.length < 4 || docxBuffer.subarray(0, 2).toString() !== "PK") {
+    const error = new Error("Adobe PDF Services returned an invalid Word document.");
+    error.code = "ADOBE_DOWNLOAD_FAILED";
+    throw error;
+  }
+  return docxBuffer;
+}
+
 router.post("/pdf-to-word", upload.single("file"), validateFile, async (req, res) => {
   try {
     if (!req.file) {
@@ -501,34 +649,25 @@ router.post("/pdf-to-word", upload.single("file"), validateFile, async (req, res
     const filename = safeName("pdf-to-word", "docx");
     const outputPath = path.join(convertedDir, filename);
 
-    if (mode === "preserve") {
-      const inputPath = path.join(uploadsDir, safeName("source-pdf", "pdf"));
-      fs.writeFileSync(inputPath, req.file.buffer);
-
+if (mode === "preserve") {
       try {
-        await convertWithWord(inputPath, outputPath, "docx");
-      } catch (wordErr) {
-        console.error("Word PDF to DOCX fallback:", wordErr);
-        const text = await extractPdfText(req.file.buffer);
-        if (!text.trim()) {
-          return res.status(422).json({
+        const docxBuffer = await convertPdfToDocxWithAdobe(req.file.buffer);
+        fs.writeFileSync(outputPath, docxBuffer);
+      } catch (conversionErr) {
+        if (conversionErr.code === "ADOBE_CREDENTIALS_MISSING") {
+          return res.status(503).json({
             success: false,
-            message: "No selectable text was found in this PDF. Scanned image PDFs need OCR."
+            message: "Preserve-layout conversion is not configured yet. Please use Fast text conversion or contact the site administrator."
           });
         }
-
-        const doc = new Document({
-          sections: [{
-            children: text.split(/\n+/).map((line) => new Paragraph({
-              children: [new TextRun(line || " ")]
-            }))
-          }]
+        console.error("Adobe PDF-to-Word conversion failed:", conversionErr.message);
+        const status = conversionErr.code === "ADOBE_CONVERSION_TIMEOUT" ? 504 : 502;
+        return res.status(status).json({
+          success: false,
+          message: conversionErr.message || "Adobe could not convert this PDF. Please try again or use Fast text conversion."
         });
-
-        fs.writeFileSync(outputPath, await Packer.toBuffer(doc));
-      } finally {
-        fs.rmSync(inputPath, { force: true });
       }
+    }
     } else {
       const text = await extractPdfText(req.file.buffer);
       if (!text.trim()) {

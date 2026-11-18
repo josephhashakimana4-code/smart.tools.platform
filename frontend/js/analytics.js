@@ -145,6 +145,22 @@ function applyBrandText(value, fallbackValue = "Smart Tools Hub") {
   document.documentElement.setAttribute("data-brand-name", brandName);
 }
 
+function applyBrandLogo(value) {
+  const logoUrl = value && String(value).trim()
+    ? String(value).trim()
+    : "/images/logo.svg";
+
+  document.querySelectorAll("[data-brand-logo]").forEach((node) => {
+    node.setAttribute("src", logoUrl);
+  });
+
+  const favicon = document.querySelector("link[rel='icon']");
+  if (favicon) favicon.setAttribute("href", logoUrl);
+
+  const appleIcon = document.querySelector("link[rel='apple-touch-icon']");
+  if (appleIcon) appleIcon.setAttribute("href", logoUrl);
+}
+
 async function smartLoadBusinessSettings() {
   if (smartBusinessSettingsLoaded) return;
   smartBusinessSettingsLoaded = true;
@@ -154,6 +170,7 @@ async function smartLoadBusinessSettings() {
     const settings = await res.json();
 
     applyBrandText(settings?.brandName || "Smart Tools Hub");
+    applyBrandLogo(settings?.logoUrl);
 
     if (settings.adsensePublisherId && !document.getElementById("smart-adsense-script")) {
       const script = document.createElement("script");
@@ -169,6 +186,7 @@ async function smartLoadBusinessSettings() {
   } catch (err) {
     console.warn("Business settings unavailable", err);
     applyBrandText("Smart Tools Hub");
+    applyBrandLogo("");
   }
 }
 

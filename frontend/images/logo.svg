@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Smart Tools Hub">
+  <rect width="128" height="128" rx="28" fill="#2563eb"/>
+  <path d="M36 38h56v52H36z" fill="none" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M48 54h32M48 68h32M48 82h20" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+</svg>

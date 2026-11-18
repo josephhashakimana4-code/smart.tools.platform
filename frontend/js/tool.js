@@ -1155,7 +1155,10 @@ async function processDocumentTool(slug) {
       method: "POST",
       body: formData
     });
-    const data = await res.json();
+const data = await res.json().catch(() => ({
+      success: false,
+      message: "The server returned an invalid response. Please try again."
+    }));
     stopProcessingStatus();
 
     if (!data.success) {
