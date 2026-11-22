@@ -1,5 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Smart Tools Hub">
-  <rect width="128" height="128" rx="28" fill="#2563eb"/>
-  <path d="M36 38h56v52H36z" fill="none" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>
-  <path d="M48 54h32M48 68h32M48 82h20" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="gear" x1="20" y1="20" x2="105" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20c8f4"/>
+      <stop offset="1" stop-color="#1742d2"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#fff"/>
+  <ellipse cx="64" cy="64" rx="55" ry="22" transform="rotate(-32 64 64)" fill="none" stroke="#20c8f4" stroke-width="6"/>
+  <g fill="url(#gear)">
+    <rect x="56" y="7" width="16" height="25" rx="4"/>
+    <rect x="56" y="7" width="16" height="25" rx="4" transform="rotate(45 64 64)"/>
+    <rect x="56" y="7" width="16" height="25" rx="4" transform="rotate(90 64 64)"/>
+    <rect x="56" y="7" width="16" height="25" rx="4" transform="rotate(135 64 64)"/>
+    <rect x="56" y="7" width="16" height="25" rx="4" transform="rotate(180 64 64)"/>
+    <rect x="56" y="7" width="16" height="25" rx="4" transform="rotate(225 64 64)"/>
+    <rect x="56" y="7" width="16" height="25" rx="4" transform="rotate(270 64 64)"/>
+    <rect x="56" y="7" width="16" height="25" rx="4" transform="rotate(315 64 64)"/>
+    <circle cx="64" cy="64" r="44"/>
+  </g>
+  <circle cx="64" cy="64" r="29" fill="#fff"/>
+  <path d="M43 43 79 79" fill="none" stroke="#172b5a" stroke-width="9" stroke-linecap="round"/>
+  <path d="m38 37 15 15m-15-15 2-11m-2 11-11 2" fill="none" stroke="#172b5a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="84" cy="84" r="7" fill="#fff" stroke="#172b5a" stroke-width="5"/>
+  <path d="M43 84 78 49" fill="none" stroke="#172b5a" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="41" cy="86" r="8" fill="#172b5a"/>
+  <path d="m77 47 10-10 5 5-10 10" fill="#172b5a" stroke="#172b5a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M21 91c14 10 39 5 62-12 13-10 22-21 25-32" fill="none" stroke="#20c8f4" stroke-width="6" stroke-linecap="round"/>
 </svg>
