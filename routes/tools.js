@@ -649,7 +649,7 @@ router.post("/pdf-to-word", upload.single("file"), validateFile, async (req, res
     const filename = safeName("pdf-to-word", "docx");
     const outputPath = path.join(convertedDir, filename);
 
-if (mode === "preserve") {
+    if (mode === "preserve") {
       try {
         const docxBuffer = await convertPdfToDocxWithAdobe(req.file.buffer);
         fs.writeFileSync(outputPath, docxBuffer);
@@ -667,7 +667,6 @@ if (mode === "preserve") {
           message: conversionErr.message || "Adobe could not convert this PDF. Please try again or use Fast text conversion."
         });
       }
-    }
     } else {
       const text = await extractPdfText(req.file.buffer);
       if (!text.trim()) {

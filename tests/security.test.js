@@ -1003,6 +1003,11 @@ describe("Smart Tools Platform - Security Tests", () => {
   // ==========================================
   describe("File Upload & Download", () => {
     test("Should allow Word conversion when ClamAV is unavailable", async () => {
+      const originalRequired = process.env.CLAMAV_REQUIRED;
+      const originalEnabled = process.env.CLAMAV_ENABLED;
+      delete process.env.CLAMAV_REQUIRED;
+      delete process.env.CLAMAV_ENABLED;
+
       const ConvertedFile = require("../models/ConvertedFile");
       const records = new Map();
       const recordId = "test-converted-file";
@@ -1045,6 +1050,10 @@ describe("Smart Tools Platform - Security Tests", () => {
         createSpy.mockRestore();
         findByIdSpy.mockRestore();
         updateOneSpy.mockRestore();
+        if (originalRequired === undefined) delete process.env.CLAMAV_REQUIRED;
+        else process.env.CLAMAV_REQUIRED = originalRequired;
+        if (originalEnabled === undefined) delete process.env.CLAMAV_ENABLED;
+        else process.env.CLAMAV_ENABLED = originalEnabled;
       }
     });
   });
